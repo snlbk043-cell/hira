@@ -1,8 +1,8 @@
 // netlify/functions/claude.js  (faster, timeout-safe version)
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-haiku-4-5-20251001"; // fast + cheap; change to "claude-sonnet-4-6" for richer output
-const MAX_ACTIVITIES = 4;   // process a few at a time to stay within Netlify's time limit
-const MAX_TOKENS = 2200;
+const MODEL = "claude-haiku-4-5-20251001";
+const MAX_ACTIVITIES = 1;   // one at a time keeps each call fast and under the time limit
+const MAX_TOKENS = 900;
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "Use POST." });
@@ -27,7 +27,7 @@ exports.handler = async (event) => {
 
   // Abort before Netlify's hard timeout so we always return clean JSON, never an HTML error page
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 9000);
+  const timer = setTimeout(() => controller.abort(), 9500);
 
   try {
     const resp = await fetch(ANTHROPIC_URL, {
@@ -75,10 +75,10 @@ function buildSystemPrompt(style) {
 
 For each activity: hazard source/energy -> undesired event -> impact. Use a 5x5 matrix (S,L 1-5; Risk=SxL; >=16 Extreme, >=10 High, >=5 Medium else Low). After controls give lower residual S,L. Cite real Indian refs where relevant (Factories Act/Rules, IBR, SMPV(U)/PESO, IS 3043, BOCW, ISO 45001, NBC 2016).
 
-STYLE = ${style === "single" ? "ONE combined row per activity." : "one row per distinct major hazard (max 2 rows per activity)."}
+STYLE = ${style === "single" ? "ONE combined row per activity." : "one row per distinct major hazard (MAXIMUM 3 rows total)."}
 Be concise and specific. Return ONLY valid JSON, no markdown:
 {"rows":[{"area":"","activity":"","sub":"","situation":"","source":"","event":"","impact":"","persons":"","existing":"","s":1,"l":1,"addControls":"","rs":1,"rl":1,"ppe":"","permit":"","refs":"","owner":"","evidence":""}]}
-s,l,rs,rl are integers 1-5. Maximum 8 rows total.`;
+s,l,rs,rl are integers 1-5. Maximum 3 rows total. Keep every field short (one line each).`;
 }
 
 function buildUserPrompt(activities, meta, style) {
@@ -100,4 +100,4 @@ function parseRows(text) {
     const obj = JSON.parse(t.slice(s, e + 1));
     return Array.isArray(obj.rows) ? obj.rows : (Array.isArray(obj) ? obj : null);
   } catch { return null; }
-} 
+}
