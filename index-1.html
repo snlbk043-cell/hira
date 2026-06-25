@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RCPL Campa Cola Smart Dynamic HIRA Generator</title>
+<style>
+  :root{
+    --bg:#f4f7fb;
+    --card:#ffffff;
+    --ink:#1f2937;
+    --muted:#64748b;
+    --primary:#0f4c81;
+    --primary2:#0b6ea8;
+    --accent:#d71920;
+    --soft:#e8f3fb;
+    --line:#d8e1eb;
+    --low:#d8f3dc;
+    --med:#fff3bf;
+    --high:#ffd6a5;
+    --ext:#ffc9c9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Segoe UI, Arial, sans-serif;font-size:14px;}
+  header{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;padding:22px 26px;border-bottom:5px solid var(--accent);}
+  header h1{margin:0;font-size:28px;letter-spacing:.2px;}
+  header p{margin:7px 0 0;color:#e8f4ff;font-size:14px;max-width:1150px;line-height:1.45;}
+  .wrap{padding:18px;max-width:1600px;margin:auto;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 18px rgba(15,76,129,.08);padding:16px;margin-bottom:16px;}
+  .panel h2{font-size:18px;margin:0 0 8px;color:var(--primary)}
+  .note{background:var(--soft);border-left:5px solid var(--primary2);padding:10px 12px;border-radius:8px;color:#17324d;line-height:1.45;}
+  .warning{background:#fff7ed;border-left:5px solid #f97316;padding:10px 12px;border-radius:8px;color:#7c2d12;line-height:1.45;}
+  .grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:10px;margin-top:12px;}
+  label{font-size:12px;font-weight:650;color:#334155;margin-bottom:4px;display:block;}
+  input,select,textarea{width:100%;padding:8px 9px;border:1px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13px;background:#fff;}
+  textarea{resize:vertical;min-height:54px;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;}
+  button{border:0;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer;color:#fff;background:var(--primary);box-shadow:0 3px 8px rgba(15,76,129,.18);}
+  button:hover{filter:brightness(.94)}
+  button.secondary{background:#334155}
+  button.success{background:#15803d}
+  button.danger{background:#b91c1c}
+  button.light{background:#e2e8f0;color:#1e293b;box-shadow:none;border:1px solid #cbd5e1;}
+  .small{font-size:12px;color:var(--muted);line-height:1.4;}
+  .input-table-wrap,.output-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff;}
+  table{border-collapse:collapse;width:100%;}
+  th,td{border:1px solid #d5dde7;padding:8px;vertical-align:top;line-height:1.35;}
+  th{background:#0f4c81;color:#fff;position:sticky;top:0;z-index:2;font-size:12px;text-align:left;white-space:nowrap;}
+  td{font-size:12.5px;background:#fff;}
+  .input-table td:first-child,.output-table td:first-child{text-align:center;font-weight:700;background:#f8fafc;}
+  .input-table input,.input-table select,.input-table textarea{min-width:160px;}
+  .input-table textarea{min-width:270px;}
+  .stats{display:grid;grid-template-columns:repeat(5,minmax(145px,1fr));gap:10px;margin-top:12px;}
+  .stat{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;}
+  .stat b{font-size:24px;color:var(--primary);display:block;}
+  .risk-low{background:var(--low)!important;color:#14532d;font-weight:700;text-align:center;}
+  .risk-medium{background:var(--med)!important;color:#7c4a03;font-weight:700;text-align:center;}
+  .risk-high{background:var(--high)!important;color:#7c2d12;font-weight:700;text-align:center;}
+  .risk-extreme{background:var(--ext)!important;color:#7f1d1d;font-weight:800;text-align:center;}
+  .confidence-high{color:#15803d;font-weight:800;}
+  .confidence-medium{color:#b45309;font-weight:800;}
+  .confidence-low{color:#b91c1c;font-weight:800;}
+  .footer{font-size:12px;color:#64748b;text-align:center;padding:18px;}
+  .chip{display:inline-block;border-radius:999px;background:#e0f2fe;color:#075985;padding:3px 8px;margin:2px;font-size:11px;font-weight:700;}
+  .hidden-print{display:block;}
+  @media print{
+    body{background:#fff;font-size:11px;}
+    header,.hidden-print,.panel.input-panel,.footer{display:none!important;}
+    .wrap{padding:0;max-width:none;}
+    .panel{box-shadow:none;border:0;margin:0;padding:0;}
+    th{background:#d9eaf7!important;color:#000!important;position:static;}
+    td,th{font-size:9px;padding:4px;}
+    .output-table-wrap{overflow:visible;border:0;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>RCPL Kurnool Campa Cola – Smart Dynamic HIRA Generator</h1>
+  <p>Enter activity and sub-activity for up to 30 tasks. The tool analyses equipment, chemical/process condition, energy source, job mode, and likely failure event to generate practical HIRA rows for a soft beverage / CSD plant.</p>
+</header>
+
+<div class="wrap">
+  <section class="panel hidden-print">
+    <h2>How this smart version works</h2>
+    <div class="note">
+      This is not simple keyword filling. It checks the task as an event pathway: <b>activity + sub-activity + area/equipment + job mode + site condition</b>. Example: “CIP chemical sample collection from black knob” generates hazards for <b>pressurised residual caustic/acid, hose jerk, splash trajectory, pH verification, closed sampling container with tap valve, emergency shower, face shield</b>. Unknown tasks are still analysed using hazard-energy logic.
+    </div>
+    <div class="warning" style="margin-top:10px;">
+      Use this as a strong draft for RCPL implementation. Final HIRA must be reviewed and approved by EHS, area owner and maintenance/production before release.
+    </div>
+  </section>
+
+  <section class="panel input-panel hidden-print">
+    <h2>Project Details</h2>
+    <div class="grid">
+      <div><label>Site / Unit</label><input id="site" value="RCPL Kurnool – Campa Cola / Soft Beverage Plant"></div>
+      <div><label>Department</label><input id="dept" value="Production / Utilities / Warehouse / ETP"></div>
+      <div><label>Prepared By</label><input id="prepared" value="EHS Team"></div>
+      <div><label>Assessment Date</label><input id="date" type="date"></div>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(3,minmax(220px,1fr));">
+      <div>
+        <label>Output Style</label>
+        <select id="outputStyle">
+          <option value="multi" selected>Detailed – create 1 row for each major hazard event</option>
+          <option value="single">Compact – combine hazards into one row per activity</option>
+        </select>
+      </div>
+      <div>
+        <label>Default Risk Philosophy</label>
+        <select id="riskMode">
+          <option value="realistic" selected>Realistic beverage plant commissioning/operation</option>
+          <option value="conservative">Conservative for new activity / contractor work</option>
+        </select>
+      </div>
+      <div>
+        <label>Target Date Logic</label>
+        <select id="targetMode">
+          <option value="risk" selected>Based on risk level</option>
+          <option value="seven">7 days for all additional controls</option>
+          <option value="fifteen">15 days for all additional controls</option>
+        </select>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button onclick="generateHIRA()">Generate Smart HIRA</button>
+      <button style="background:#6d28d9" onclick="generateWithClaude()" id="claudeBtn">✨ Generate with Claude AI</button>
+      <button class="success" onclick="downloadExcel()">Download Excel-Compatible .xls</button>
+      <button class="secondary" onclick="downloadCSV()">Download CSV</button>
+      <button class="light" onclick="copyToExcel()">Copy Table to Excel</button>
+      <button class="light" onclick="window.print()">Print / Save PDF</button>
+      <button class="light" onclick="loadSamples()">Load RCPL Sample Activities</button>
+      <button class="danger" onclick="clearInputs()">Clear Inputs</button>
+    </div>
+    <p class="small">Tip: Activity and Sub Activity are enough. But for better output add Area/Equipment and Site Condition, like “KHS labeler rotating parts exposed near discharge side” or “CIP sample tube loose, black knob, pressure jerk”.</p>
+    <div id="claudeStatus" style="margin-top:10px;"></div>
+  </section>
+
+  <section class="panel input-panel hidden-print">
+    <h2>Activity Input – Maximum 30 Rows</h2>
+    <div class="input-table-wrap">
+      <table class="input-table" id="inputTable">
+        <thead>
+          <tr>
+            <th style="width:50px">No.</th>
+            <th>Area / Equipment</th>
+            <th>Activity</th>
+            <th>Sub Activity / Task Step</th>
+            <th>Job Mode</th>
+            <th>Specific Site Condition / Observation</th>
+          </tr>
+        </thead>
+        <tbody id="inputBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="outputPanel">
+    <h2>Generated HIRA Output</h2>
+    <div class="stats hidden-print">
+      <div class="stat"><span>Total HIRA Rows</span><b id="statRows">0</b></div>
+      <div class="stat"><span>Extreme / High Initial Risk</span><b id="statHigh">0</b></div>
+      <div class="stat"><span>Medium Initial Risk</span><b id="statMed">0</b></div>
+      <div class="stat"><span>Low Initial Risk</span><b id="statLow">0</b></div>
+      <div class="stat"><span>EHS Review Required</span><b id="statReview">0</b></div>
+    </div>
+    <div id="topMatches" class="hidden-print" style="margin-top:10px;"></div>
+    <div class="output-table-wrap" style="margin-top:12px;">
+      <table class="output-table" id="outputTable">
+        <thead>
+          <tr>
+            <th>Sl.</th>
+            <th>Site / Department</th>
+            <th>Area / Equipment</th>
+            <th>Activity</th>
+            <th>Sub Activity / Task Step</th>
+            <th>Situation / Event Analysed</th>
+            <th>Hazard Source / Energy</th>
+            <th>Specific Hazard / Undesired Event</th>
+            <th>Possible Impact</th>
+            <th>Persons at Risk</th>
+            <th>Existing Controls</th>
+            <th>S</th>
+            <th>L</th>
+            <th>Risk</th>
+            <th>Risk Level</th>
+            <th>Additional Controls Required</th>
+            <th>Residual S</th>
+            <th>Residual L</th>
+            <th>Residual Risk</th>
+            <th>Residual Level</th>
+            <th>PPE Required</th>
+            <th>Permit / Authorization</th>
+            <th>Legal / Standard Reference</th>
+            <th>Responsible Owner</th>
+            <th>Target</th>
+            <th>Verification Evidence</th>
+            <th>Status / Remarks</th>
+            <th>Auto Logic Confidence</th>
+          </tr>
+        </thead>
+        <tbody id="outputBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="footer">Generated locally in browser. No data is sent outside. Designed for RCPL Kurnool soft beverage / CSD operations.</div>
+</div>
+
+<script>
+const areas = ["", "Production Line / KHS", "CIP / Syrup Room", "CO2 Yard", "Boiler House", "Compressor Room", "Utilities", "Warehouse / FG", "ETP / STP", "WTP", "Electrical / MCC / HT", "HSD / LDO Yard", "Lab", "Fire Pump Room", "Maintenance Workshop", "Admin / Security", "Project / Construction"];
+const jobModes = ["Routine Operation", "Non-routine / Breakdown", "Cleaning / Sanitation", "Maintenance", "Startup / Commissioning", "Shutdown", "Contractor Work", "Inspection / Testing"];
+
+function init(){
+  document.getElementById('date').valueAsDate = new Date();
+  const body = document.getElementById('inputBody');
+  body.innerHTML='';
+  for(let i=1;i<=30;i++){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i}</td>
+      <td><select class="area">${areas.map(a=>`<option>${a}</option>`).join('')}</select></td>
+      <td><input class="activity" placeholder="e.g., CIP chemical handling"></td>
+      <td><textarea class="sub" placeholder="e.g., Collect caustic sample from black knob / sample point"></textarea></td>
+      <td><select class="mode">${jobModes.map(m=>`<option>${m}</option>`).join('')}</select></td>
+      <td><textarea class="condition" placeholder="Specific detail: pressure, rotating part, height, chemical name, vehicle movement, unguarded part, etc."></textarea></td>`;
+    body.appendChild(tr);
+  }
+}
+
+function norm(s){ return (s||'').toLowerCase().replace(/[^a-z0-9%+\-\.\s]/g,' ').replace(/\s+/g,' ').trim(); }
+function has(text, term){ return text.includes(norm(term)); }
+function hasAny(text, arr){ return arr.some(x=>has(text,x)); }
+function uniqueJoin(arr, sep='; '){ return [...new Set(arr.filter(Boolean))].join(sep); }
+function riskLevel(score){ if(score>=16) return 'Extreme'; if(score>=10) return 'High'; if(score>=5) return 'Medium'; return 'Low'; }
+function riskClass(level){ return 'risk-' + level.toLowerCase(); }
+function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
+
+const scenarios = [
+{
+ id:'CIP-SAMPLE', title:'CIP caustic/acid sample collection or residue checking', area:'CIP / Syrup Room',
+ groups:[["cip","cleaning in place"],["caustic","naoh","acid","phosphoric","nitric","chemical"],["sample","sampling","residue","flush","black knob","valve","tube"]],
+ terms:["cip","caustic","naoh","acid","phosphoric","sample","sampling","residue","flush","black knob","tube","hose","valve","splash","jerk"],
+ task:'Collect/verify CIP chemical residue from sample point/black knob and flush line before release or operation.',
+ persons:'Operator, CIP technician, maintenance person, nearby line team',
+ existing:'SDS/MSDS available; trained operator; basic flushing practice; gloves/goggles used; supervisor awareness; emergency shower/eye wash available in utility/chemical area if installed.',
+ permit:'Chemical handling authorization / Line break clearance if maintenance involved',
+ refs:'ISO 45001 risk assessment; Factories Act/state rules for hazardous substances and PPE; SDS requirement; site Chemical Safety SOP.',
+ owner:'Production + EHS + Maintenance', evidence:'Closed sampling arrangement photo, pH record, line isolation checklist, training record',
+ hazards:[
+  {source:'Residual caustic/acid, pressurised liquid, loose sample tube', event:'Chemical splash to face/eyes/skin due to residual caustic/acid under pressure, sudden hose/tube jerk, or valve opened before full flushing.', impact:'Eye injury, skin burn, respiratory irritation, first aid/MTC case, contamination/spillage on floor.', s:4,l:3,rs:4,rl:1, controls:'Provide fixed closed sampling line connected to transparent container with tap valve; secure tube with clamp and bracket; verify zero pressure before opening; flush until neutral pH; use pH strip/meter before hand contact; open valve slowly while standing side-on; keep eyewash/shower unobstructed; spill kit and neutralization media available.'},
+  {source:'Wet chemical floor and manual flushing', event:'Slip/fall after chemical/water spillage during sample collection and flushing.', impact:'Slip injury, chemical contact with shoe/skin, secondary fall near running line.', s:3,l:3,rs:3,rl:1, controls:'Provide drain tray/collection container; immediate barricade and cleanup; anti-skid floor mat where required; mark chemical sampling point; no loose hoses on walkway.'}
+ ]
+},
+{
+ id:'CO2-UNLOAD', title:'CO2 tanker unloading / CO2 transfer to bullet', area:'CO2 Yard',
+ groups:[["co2","carbon dioxide"],["unload","unloading","tanker","bullet","transfer","decanting"]],
+ terms:["co2","carbon dioxide","tanker","unloading","bullet","transfer","hose","cryogenic","asphyxiation","pressure","prv","static"],
+ task:'Connect CO2 tanker to storage bullet/vapour-liquid manifold and transfer product.',
+ persons:'CO2 tanker driver, utility operator, security, nearby maintenance team',
+ existing:'Designated unloading bay; pressure gauges/PRV; wheel chocks; operator supervision; basic hose connection practice; emergency contact display.',
+ permit:'Tanker unloading authorization / Work permit for non-routine connection or maintenance',
+ refs:'SMPV/PESO requirements where applicable; ISO 45001; pressure system SOP; site emergency response plan.',
+ owner:'Utilities + EHS + Security', evidence:'Hose test certificate, earthing record, PRV tag, unloading checklist, gas detector/barricade photo',
+ hazards:[
+  {source:'High pressure CO2, hose/coupling, low temperature line', event:'Hose whip, coupling leak, rapid CO2 release or dry ice/frost burn during unloading connection/disconnection.', impact:'Asphyxiation, cold burn, eye injury, panic evacuation, equipment damage.', s:5,l:3,rs:5,rl:1, controls:'Use tested hose with whip-check/anti-whiplash; confirm correct vapour/liquid connection; stand clear of coupling line of fire; provide CO2 detector/alarm near unloading point; barricade exclusion zone; verify PRV/NRV/pressure gauge health; wear cryogenic gloves and face shield; leak test before transfer.'},
+  {source:'CO2 vapour cloud and low oxygen pocket', event:'CO2 accumulation in low-lying/poorly ventilated area during leak or venting.', impact:'Oxygen deficiency, unconsciousness, fatality risk for entrant/rescuer.', s:5,l:2,rs:5,rl:1, controls:'No unauthorised entry during unloading; ensure ventilation/open area; emergency windsock or wind direction awareness; do not enter cloud; rescue only by trained team with SCBA if required; display CO2 asphyxiation warning.'},
+  {source:'Tanker movement/static electricity', event:'Vehicle roll-away, collision, or static discharge during tanker unloading.', impact:'Injury to operator/driver, hose rupture, release escalation.', s:4,l:2,rs:4,rl:1, controls:'Wheel chock both sides; ignition control; engine off unless required by procedure; vehicle earthing/bonding before connection; traffic marshal; reverse alarm; defined parking bay with stopper.'}
+ ]
+},
+{
+ id:'LABELER-ROTATING', title:'Labeler / KHS rotating equipment unguarded contact', area:'Production Line / KHS',
+ groups:[["labeler","labeller","label machine","labeling"],["rotating","rpm","unguarded","roller","star wheel","touch","guard"]],
+ terms:["labeler","labeller","labeling","rotating","rpm","unguarded","roller","star wheel","touch","guard","hand injury"],
+ task:'Operate/observe labeler machine near rotating roller/star wheel/discharge area.',
+ persons:'Line operator, maintenance technician, QA inspector, nearby helper',
+ existing:'Machine E-stop; operator trained; some fixed guarding/interlock available; line supervisor present.',
+ permit:'LOTO authorization for guard removal / Maintenance permit for intervention',
+ refs:'Factories Act/state rules for machine guarding; ISO 45001; OEM manual; LOTO SOP.',
+ owner:'Production + Engineering + EHS', evidence:'Guard photo, interlock test record, LOTO record, operator training sign-off',
+ hazards:[
+  {source:'Rotating roller/star wheel above safe speed, in-running nip point', event:'Accidental touch or hand entry into rotating labeler parts during operation, adjustment or observation.', impact:'Finger crush, laceration, fracture, entanglement, production disturbance.', s:4,l:3,rs:4,rl:1, controls:'Install fixed transparent guard or interlocked guard at exposed rotating part; mark no-touch zone; use tool for adjustment; stop machine before cleaning/jam removal; verify E-stop reach; display rotating parts warning; include in PM checklist.'},
+  {source:'Bypass/defeat of guard or E-stop not verified', event:'Operator works near rotating parts with guard removed or ineffective interlock.', impact:'Severe hand injury, unsafe normalisation of bypass.', s:4,l:3,rs:4,rl:1, controls:'No operation with guard bypassed; guard bypass key under engineering control; weekly interlock/E-stop validation; supervisor sign-off after maintenance; disciplinary escalation for bypassing.'}
+ ]
+},
+{
+ id:'FILLER-CAPPER-JAM', title:'Filler/capper/rinser jam clearing and changeover', area:'Production Line / KHS',
+ groups:[["filler","capper","rinser","monoblock","khs"],["jam","clearing","changeover","adjustment","stuck","bottle"]],
+ terms:["filler","capper","rinser","khs","monoblock","jam","clearing","changeover","bottle","cap","chuck","star wheel","burst"],
+ task:'Clear jam or perform changeover at filler/capper/rinser star wheel, chuck or bottle transfer section.',
+ persons:'Production operator, maintenance technician, QA, line supervisor',
+ existing:'OEM guards/interlocks; E-stop; changeover tools; operator training; line SOP.',
+ permit:'LOTO for maintenance / Line intervention authorization',
+ refs:'Machine guarding and LOTO SOP; ISO 45001; Factories Act/state rules; OEM manual.',
+ owner:'Production + Engineering', evidence:'LOTO checklist, changeover checklist, interlock test, before/after photos',
+ hazards:[
+  {source:'Rotating star wheel, capper chuck, transfer screws, trapped bottles', event:'Hand/finger caught while removing jammed bottle/cap or adjusting guide with stored rotation/pneumatic energy.', impact:'Crush injury, laceration, fracture, amputation potential.', s:4,l:3,rs:4,rl:1, controls:'Stop line and isolate relevant section; apply try-test before hand entry; use jam removal hook/tool; never clear jam in auto mode; keep two-hand reset where applicable; supervisor control for repeated jams; review root cause of jamming.'},
+  {source:'Pressurised carbonated bottle / glass or PET burst', event:'Bottle burst or cap projectile during filling/capping jam or pressure abnormality.', impact:'Eye injury, cuts, face injury, product contamination.', s:4,l:2,rs:4,rl:1, controls:'Maintain filler pressure set point; provide splash/burst guard; face shield during troubleshooting; remove damaged bottles with tool; investigate pressure spikes; reject bottle lot if repeated bursting.'}
+ ]
+},
+{
+ id:'CONVEYOR-MAINT', title:'Conveyor maintenance / jam removal', area:'Production Line / KHS',
+ groups:[["conveyor","belt","chain","roller"],["maintenance","jam","clean","adjust","tracking","alignment"]],
+ terms:["conveyor","belt","chain","roller","jam","maintenance","tracking","adjustment","alignment","sprocket","nip"],
+ task:'Clean, align, track or remove jam from bottle/carton conveyor.',
+ persons:'Operator, maintenance technician, helper',
+ existing:'E-stop pull cord in some locations; local stop button; basic guarding; trained operator.',
+ permit:'LOTO for maintenance / Line stop clearance',
+ refs:'Machine guarding; LOTO SOP; ISO 45001; OEM manual.',
+ owner:'Production + Maintenance', evidence:'LOTO tag photo, pull cord test, guard checklist, PM record',
+ hazards:[
+  {source:'Moving belt/chain/sprocket and in-running nip', event:'Glove/hand/clothing caught during cleaning, alignment or jam removal on moving conveyor.', impact:'Finger crush, laceration, entanglement, fracture.', s:4,l:3,rs:4,rl:1, controls:'Full stop and isolation for hand entry; guard sprockets/tail pulley/nip points; use long-handled cleaning tool; prohibit cleaning with rag while running; install pull cord where long conveyor length; verify zero energy.'},
+  {source:'Wet product spillage and broken bottles/cartons', event:'Slip or cut injury during clearing spill/jam near conveyor.', impact:'Slip fall, cut, contamination spread.', s:3,l:3,rs:3,rl:1, controls:'Immediate spill response; bottle shard bin; cut-resistant gloves for broken bottle/PET scrap; maintain dry walking path; 5S checklist per shift.'}
+ ]
+},
+{
+ id:'SHRINK-TUNNEL', title:'Shrink wrapper / hot tunnel operation', area:'Production Line / KHS',
+ groups:[["shrink","wrapper","tunnel","film"],["hot","heat","temperature","sealing","heater"]],
+ terms:["shrink","wrapper","tunnel","film","hot","heat","heater","sealing","temperature","burn","fire"],
+ task:'Operate, clear jam, or adjust shrink wrapper/sealing bar/hot tunnel.',
+ persons:'Packing operator, maintenance technician, helper',
+ existing:'Temperature controller; guard; E-stop; fire extinguisher in area; operator training.',
+ permit:'LOTO for maintenance / Hot surface intervention clearance',
+ refs:'Machine guarding; fire safety; ISO 45001; IS 2190 extinguisher selection; OEM manual.',
+ owner:'Production + Engineering', evidence:'Temperature log, extinguisher access photo, guard/interlock check, LOTO record',
+ hazards:[
+  {source:'Hot tunnel, heater, sealing jaw', event:'Contact burn while clearing film jam or adjusting hot section before cooling.', impact:'Burn injury to hand/forearm, first aid/MTC.', s:3,l:3,rs:3,rl:1, controls:'Cool-down time before maintenance; heat-resistant gloves; display hot surface signage; guarded access to heater; use tool for film removal; lockout heater supply for maintenance.'},
+  {source:'Plastic film near hot surface/electrical heater', event:'Film accumulation overheats and ignites inside tunnel.', impact:'Smoke, small fire, production stoppage, equipment damage.', s:4,l:2,rs:4,rl:1, controls:'Remove film waste every shift; maintain temperature high-high trip; keep correct extinguisher nearby and unobstructed; no combustible storage near tunnel; include heater cleaning in PM.'}
+ ]
+},
+{
+ id:'BOILER', title:'Boiler operation / blowdown / burner maintenance', area:'Boiler House',
+ groups:[["boiler","steam","burner","prds","blowdown"],["operation","maintenance","blowdown","startup","ldo","furnace"]],
+ terms:["boiler","steam","burner","prds","blowdown","ldo","furnace","pressure","safety valve","chimney","hot surface"],
+ task:'Operate boiler, perform blowdown, burner start-up or attend steam/PRDS line.',
+ persons:'Boiler operator, utility engineer, maintenance, contractor',
+ existing:'Licensed/competent operator; pressure gauge; safety valve; level control; flame failure interlock; IBR documents; fire extinguisher.',
+ permit:'Boiler operation authorization / Hot work / LOTO for burner maintenance',
+ refs:'Indian Boiler Regulations; Factories Act/state rules; ISO 45001; fire safety SOP; OEM manual.',
+ owner:'Utilities + Engineering + EHS', evidence:'IBR certificate, safety valve test, interlock test, blowdown SOP, operator license/training',
+ hazards:[
+  {source:'Steam pressure, blowdown water, hot condensate', event:'Scalding from steam/hot water release during blowdown, flange leak or valve operation.', impact:'Severe burn, eye injury, fatality potential at high pressure.', s:5,l:2,rs:5,rl:1, controls:'Operate blowdown from safe position; route BD line to safe pit; insulate hot lines; tag steam direction and pressure; maintain PRV/safety valve test; barricade leak area; face shield/heat gloves for abnormal intervention.'},
+  {source:'LDO burner, flame failure, fuel leak', event:'Fire/explosion due to fuel leakage, delayed ignition, failed purge or bypassed interlock.', impact:'Burn injury, boiler/fire damage, plant emergency.', s:5,l:2,rs:5,rl:1, controls:'Pre-start purge verification; burner interlock checklist; leak test fuel train; no bypass of flame failure; LDO spill kit; earthing/bonding; emergency fuel isolation valve access; periodic mock drill.'}
+ ]
+},
+{
+ id:'COMPRESSOR', title:'Air compressor / receiver / pneumatic line', area:'Compressor Room',
+ groups:[["compressor","air receiver","compressed air","pneumatic"],["maintenance","operation","drain","hose","pressure","srvs"]],
+ terms:["compressor","air receiver","compressed air","pneumatic","hose","pressure","auto drain","srv","safety valve","condensate"],
+ task:'Operate, maintain, drain, or connect compressed air compressor/receiver/pneumatic line.',
+ persons:'Utility operator, maintenance technician, contractor',
+ existing:'Pressure gauge; SRV/safety valve; auto cut-off; receiver name plate; drain line; PM practice.',
+ permit:'LOTO / Pressure release clearance',
+ refs:'Pressure vessel/receiver safety requirements; ISO 45001; OEM manual; site LOTO SOP.',
+ owner:'Utilities + Engineering', evidence:'SRV test certificate, receiver inspection, pressure release checklist, PM record',
+ hazards:[
+  {source:'Stored pneumatic energy and high-pressure hose', event:'Hose whip, fitting failure or sudden air release during maintenance/drain/connection.', impact:'Eye injury, face injury, hearing damage, laceration.', s:4,l:3,rs:4,rl:1, controls:'Depressurise before opening; whip-check on temporary hoses; rated hose/fitting only; safety clip on quick coupler; never use compressed air for body cleaning; face shield during abnormal release work.'},
+  {source:'Air receiver overpressure / failed SRV', event:'Receiver rupture or relief valve failure due to blocked outlet/failed pressure control.', impact:'Multiple injury, equipment damage, production loss.', s:5,l:2,rs:5,rl:1, controls:'Annual/periodic SRV test; pressure gauge calibration; receiver thickness/inspection; set pressure tag; high-pressure trip test; no isolation valve locked between receiver and SRV unless controlled.'}
+ ]
+},
+{
+ id:'ELECTRICAL', title:'Electrical panel / MCC / HT / LOTO work', area:'Electrical / MCC / HT',
+ groups:[["electrical","mcc","pcc","panel","ht","lt","transformer","breaker"],["maintenance","inspection","energized","isolation","testing","loto"]],
+ terms:["electrical","mcc","pcc","panel","ht","lt","transformer","breaker","arc flash","shock","loto","insulation mat","earthing"],
+ task:'Open/inspect/maintain electrical panel, MCC/PCC, transformer yard, HT/LT equipment or perform isolation.',
+ persons:'Electrical engineer, technician, contractor, nearby operator',
+ existing:'Authorized electrician; panel doors; danger signage; some insulating mats; earthing; single line diagram; permit system.',
+ permit:'Electrical work permit + LOTO + energized work approval if unavoidable',
+ refs:'CEA/electrical safety requirements; Factories Act/state rules; ISO 45001; site Electrical Safety and LOTO SOP.',
+ owner:'Electrical + EHS', evidence:'LOTO record, permit, SLD tag, earth resistance record, arc-flash PPE issue, panel inspection',
+ hazards:[
+  {source:'Live electrical parts, stored energy, poor isolation', event:'Electric shock/electrocution during panel opening, testing, or wrong isolation.', impact:'Fatal electric shock, burn, fall due to shock.', s:5,l:3,rs:5,rl:1, controls:'Authorised person only; identify correct feeder using SLD; isolate-lock-tag-try-test; use insulated tools and voltage detector; rubber mat; panel key control; no wet hand/floor; display shock treatment chart and emergency contact.'},
+  {source:'Arc flash/short circuit from tools/dust/loose termination', event:'Arc flash during breaker racking, tightening or fault finding.', impact:'Severe burn, eye injury, blast injury, fire.', s:5,l:2,rs:5,rl:1, controls:'De-energise wherever possible; arc-rated face shield/clothing for high risk tasks; cover adjacent live parts; torque check program; thermography; remove combustibles; maintain panel IP/housekeeping; fire extinguisher CO2/DCP as applicable.'}
+ ]
+},
+{
+ id:'FORKLIFT', title:'Forklift / pallet truck movement and loading', area:'Warehouse / FG',
+ groups:[["forklift","flt","pallet truck","reach truck","stacker"],["loading","unloading","movement","reverse","warehouse","truck"]],
+ terms:["forklift","flt","pallet truck","reach truck","stacker","loading","unloading","reverse","warehouse","truck","pedestrian","pallet"],
+ task:'Move pallets, load/unload truck, reverse, stack or travel inside warehouse/FG/production interface.',
+ persons:'Forklift operator, pedestrian, truck driver, helper, security',
+ existing:'Trained operator; horn/reverse alarm; speed limit signage; basic route marking; reflective jacket.',
+ permit:'Forklift operator authorization / vehicle entry control',
+ refs:'Material handling equipment safety; ISO 45001; site Traffic Management Plan; Factories Act/state rules.',
+ owner:'Warehouse + Logistics + EHS', evidence:'Operator license/training, daily checklist, route marking photo, speed control check, observation record',
+ hazards:[
+  {source:'Moving forklift, blind corner, reversing vehicle', event:'Pedestrian struck/crushed during reversing, blind corner movement or truck loading.', impact:'Fatality, fracture, crush injury.', s:5,l:3,rs:5,rl:1, controls:'Segregated pedestrian walkway; physical barrier at high movement area; speed governor/limit; convex mirror and stop line; reverse spotter in congested area; no mobile phone while walking; high visibility vest; horn at junction.'},
+  {source:'Raised load, unstable pallet, uneven floor/ramp', event:'Pallet/load fall or forklift tip-over during stacking/ramp movement.', impact:'Crush injury, product damage, rack collapse.', s:4,l:3,rs:4,rl:1, controls:'Check pallet condition; do not travel with raised forks; load within capacity; secure damaged pallet; rack load display; ramp gradient control; daily brake/tyre check; exclusion zone during stacking.'}
+ ]
+},
+{
+ id:'WAH', title:'Work at height / mezzanine / platform / roof', area:'Project / Construction',
+ groups:[["height","roof","mezzanine","ladder","platform","scaffold","lifeline"],["work","inspection","maintenance","installation","cleaning"]],
+ terms:["height","roof","mezzanine","ladder","platform","scaffold","lifeline","edge","fall","harness","work at height","wah"],
+ task:'Work/inspection/maintenance at height on ladder, scaffold, platform, mezzanine, roof or elevated machine area.',
+ persons:'Worker, contractor, maintenance, persons below',
+ existing:'Basic ladder/scaffold; helmet and harness available; supervisor monitoring; barricade sometimes used.',
+ permit:'Work at Height Permit / Scaffold tag / Ladder inspection',
+ refs:'Work at height safe system; Factories Act/state rules; ISO 45001; site WAH SOP.',
+ owner:'Area Owner + Contractor Supervisor + EHS', evidence:'WAH permit, scaffold tag, lifeline certificate, harness inspection, barricade photo',
+ hazards:[
+  {source:'Open edge, fragile roof, unsafe ladder/scaffold', event:'Person fall from height due to unprotected edge, poor access, overreaching or failed anchor.', impact:'Fatality, fracture, head/spine injury.', s:5,l:3,rs:5,rl:1, controls:'Prefer fixed platform/MEWP; 100% tie-off to certified anchor/lifeline; full edge protection with top/mid rail and toe board; inspect ladder/scaffold; maintain 3-point contact; stop work in rain/high wind; rescue plan available.'},
+  {source:'Tools/material at height', event:'Dropped object falls on person below.', impact:'Head injury, cut, equipment damage.', s:4,l:3,rs:4,rl:1, controls:'Barricade drop zone; tool lanyards; toe board/net; no storage near edge; helmet with chin strap; assign spotter where public path exists.'}
+ ]
+},
+{
+ id:'HOTWORK', title:'Hot work welding/cutting/grinding', area:'Maintenance Workshop',
+ groups:[["welding","cutting","grinding","hot work","gas cutting"],["maintenance","fabrication","repair","installation"]],
+ terms:["welding","cutting","grinding","hot work","gas cutting","spark","fire watch","cylinder","fabrication"],
+ task:'Welding, cutting, grinding or fabrication inside production/utilities/warehouse/project area.',
+ persons:'Welder, helper, nearby operator, fire watch, contractor',
+ existing:'Fire extinguisher; PPE; sometimes fire watch; permit practice; cylinder trolley.',
+ permit:'Hot Work Permit + gas cylinder checklist + LOTO if on equipment',
+ refs:'Fire safety requirements; ISO 45001; gas cylinder safety; IS 2190 extinguisher selection; site PTW SOP.',
+ owner:'Maintenance + Area Owner + EHS', evidence:'Hot work permit, gas hose flashback arrester check, fire watch log, post-work fire watch record',
+ hazards:[
+  {source:'Sparks, slag, hot metal near combustible packaging/film/cartons', event:'Fire initiation from sparks contacting cartons, plastic film, cable tray, dust or insulation.', impact:'Fire, smoke, burn injury, production loss.', s:5,l:3,rs:5,rl:1, controls:'Remove combustibles within 10 m or cover with fire blanket; assign trained fire watch during and after work; keep correct extinguisher/hose line; gas test if near vessel/pit; post-work watch minimum 30-60 min as site SOP; no hot work near running chemical/fuel unloading.'},
+  {source:'Grinding/cutting wheel and flying particles', event:'Wheel burst, flying spark/metal particle or eye exposure during grinding/cutting.', impact:'Eye injury, face cut, hand injury.', s:4,l:3,rs:4,rl:1, controls:'Use correct rated wheel and guard; face shield plus goggles; inspect grinder cable/plug; two-hand grip; no side grinding; maintain safe direction of sparks; use leather gloves/apron.'}
+ ]
+},
+{
+ id:'CONFINED', title:'Confined space tank/pit/vessel entry', area:'ETP / STP',
+ groups:[["confined","tank","pit","sump","vessel","manhole","inside"],["entry","cleaning","inspection","maintenance"]],
+ terms:["confined","tank","pit","sump","vessel","manhole","entry","inside","cleaning","inspection","oxygen","h2s","sewage"],
+ task:'Enter tank, pit, sump, vessel or confined enclosure for cleaning, inspection or maintenance.',
+ persons:'Entrant, attendant, standby rescue team, supervisor',
+ existing:'Permit system; blower sometimes used; basic PPE; supervisor control.',
+ permit:'Confined Space Entry Permit + LOTO + gas test + rescue plan',
+ refs:'Confined space safe system; ISO 45001; Factories Act/state rules; emergency response plan.',
+ owner:'Area Owner + EHS + Maintenance', evidence:'CSE permit, gas test record, rescue tripod/SCBA check, isolation checklist, attendant log',
+ hazards:[
+  {source:'Oxygen deficiency/toxic gas/chemical residue', event:'Entrant collapse due to low oxygen, CO2/H2S, chemical vapour, or inadequate ventilation.', impact:'Fatality, multiple casualty during unplanned rescue.', s:5,l:3,rs:5,rl:1, controls:'No entry without permit; isolate all inlets/outlets; clean and ventilate; test O2/LEL/toxic gases before and during entry; continuous attendant; rescue plan and equipment; no unauthorised rescue; intrinsically safe light where needed.'},
+  {source:'Agitator/pump/inlet line stored energy', event:'Unexpected energisation or material inflow while person is inside tank/pit.', impact:'Crush, drowning, engulfment, fatality.', s:5,l:2,rs:5,rl:1, controls:'LOTO for agitator/pump; blind/spade or positive isolation for inlet; drain/depressurise; try-test; lock box for multiple entrants; display entry board.'}
+ ]
+},
+{
+ id:'ETP-CHEM', title:'ETP/STP chemical dosing / sample handling', area:'ETP / STP',
+ groups:[["etp","stp","effluent","sewage","wastewater"],["chemical","dosing","sample","polymer","acid","alkali","sludge","hypo"]],
+ terms:["etp","stp","effluent","wastewater","sewage","chemical dosing","polymer","acid","alkali","hypo","sludge","sample","bod","cod"],
+ task:'Handle/dose chemicals, collect samples, operate sludge/wastewater treatment equipment.',
+ persons:'ETP operator, lab technician, maintenance, contractor',
+ existing:'Chemical containers labelled; gloves/goggles; dosing pumps; sample bottles; drainage; basic training.',
+ permit:'Chemical handling authorization / Confined space if pit/tank entry',
+ refs:'APPCB consent conditions/site environmental controls; ISO 14001/45001; SDS; Hazardous waste SOP if applicable.',
+ owner:'Environment + ETP Operator + EHS', evidence:'Chemical label/SDS, dosing log, PPE issue, eyewash check, spill response record',
+ hazards:[
+  {source:'Acid/alkali/polymer/hypochlorite dosing chemical', event:'Splash during drum change, dosing line leak, sample collection or chemical transfer.', impact:'Eye/skin burn, respiratory irritation, slip due to spill.', s:4,l:3,rs:4,rl:1, controls:'Closed transfer pump/funnel; secondary containment; compatible labelled containers; face shield, goggles and chemical gloves; eyewash/shower; spill kit; do not mix incompatible chemicals; dosing line inspection.'},
+  {source:'Biological wastewater, sludge and wet floor', event:'Contact with contaminated water/sludge and slip near treatment units.', impact:'Skin infection, gastrointestinal exposure, slip injury.', s:3,l:3,rs:3,rl:1, controls:'Gum boots, nitrile gloves; handwash after task; cover open pits; anti-skid walkway; good lighting; vaccination/health awareness as site policy; sludge handling SOP.'}
+ ]
+},
+{
+ id:'WTP-HYPO', title:'WTP chlorine/hypochlorite/chemical handling', area:'WTP',
+ groups:[["wtp","water treatment","ro","uf","dm","softener"],["hypo","chlorine","sodium hypochlorite","acid","caustic","chemical","dosing"]],
+ terms:["wtp","water treatment","hypo","chlorine","sodium hypochlorite","acid","caustic","dosing","ro","uf","softener"],
+ task:'Handle WTP chemicals, hypochlorite dosing, RO/UF cleaning, softener regeneration or sampling.',
+ persons:'WTP operator, utility technician, lab technician',
+ existing:'Dosing pump; chemical label; gloves/goggles; sample point; SDS.',
+ permit:'Chemical handling authorization / Line break permit for maintenance',
+ refs:'Drinking/process water safety SOP; SDS; ISO 45001/14001; site chemical storage procedure.',
+ owner:'Utilities + QA + EHS', evidence:'Chemical stock register, SDS, dosing log, eyewash inspection, sample pH record',
+ hazards:[
+  {source:'Hypochlorite/chlorine solution and incompatible chemical mixing', event:'Chlorine gas release or chemical splash due to wrong mixing, drum transfer or dosing line leak.', impact:'Respiratory irritation, eye burn, evacuation, first aid/MTC.', s:4,l:3,rs:4,rl:1, controls:'Segregate acid and hypochlorite; label dosing lines; never mix unknown chemicals; use closed transfer; provide ventilation; face shield/goggles/gloves; eyewash; emergency response card near dosing area.'},
+  {source:'RO/UF pressure lines and cleaning chemicals', event:'Line leak or hose pop-off during CIP/cleaning of WTP membranes.', impact:'Chemical splash, slip, equipment damage.', s:4,l:2,rs:4,rl:1, controls:'Depressurise before opening; rated clamps/hoses; sample from fixed point; verify pH before draining; barricade wet area; inspect hoses before use.'}
+ ]
+},
+{
+ id:'HSD-LDO', title:'HSD/LDO fuel unloading and storage', area:'HSD / LDO Yard',
+ groups:[["hsd","ldo","diesel","fuel","oil"],["unloading","storage","transfer","tank","tanker","pump"]],
+ terms:["hsd","ldo","diesel","fuel","oil","unloading","tanker","storage","pump","flammable","spill","static"],
+ task:'Unload, transfer or handle HSD/LDO fuel for DG/boiler/storage tank.',
+ persons:'Tanker driver, utility operator, security, fire team, nearby contractor',
+ existing:'Designated unloading area; fire extinguishers; basic earthing; spill tray; no smoking board.',
+ permit:'Fuel unloading authorization / Hot work prohibited unless special approval',
+ refs:'PESO/fuel storage requirements where applicable; fire safety; ISO 45001/14001; site spill response SOP.',
+ owner:'Utilities + Security + EHS', evidence:'Tanker unloading checklist, bonding photo, spill kit check, extinguisher inspection, tank level record',
+ hazards:[
+  {source:'Flammable fuel vapour, static electricity, spill', event:'Fuel spill/fire during hose connection, overfill, static discharge or nearby ignition source.', impact:'Fire, burn injury, soil/water contamination, plant emergency.', s:5,l:2,rs:5,rl:1, controls:'Bond/earth tanker before unloading; stop engine where procedure requires; no ignition source/no mobile use; drip tray under coupling; level monitoring/overfill prevention; spill kit; fire watch; emergency isolation valve accessible.'},
+  {source:'Vehicle movement and hose under tension', event:'Tanker movement while hose connected causing hose rupture and spill.', impact:'Slip, fire escalation, equipment damage.', s:4,l:2,rs:4,rl:1, controls:'Wheel chocks; key control; barricade unloading zone; trained marshal; hose route protected; disconnect only after pressure drain and valve closure.'}
+ ]
+},
+{
+ id:'MANUAL-CHEM', title:'Manual handling of caustic/sugar/chemical bags', area:'CIP / Syrup Room',
+ groups:[["bag","bags","manual","lifting","handling"],["caustic","chemical","sugar","powder","flakes"]],
+ terms:["manual","lifting","handling","bag","bags","caustic","sugar","powder","flakes","sack","ergonomic","dust"],
+ task:'Lift, carry, cut and charge chemical/sugar bags into hopper/tank or dosing point.',
+ persons:'Operator, helper, contractor',
+ existing:'Manual lifting by two persons sometimes; gloves/mask; trolley available in some area; SDS for chemical.',
+ permit:'Chemical handling authorization if caustic/acid; manual handling training',
+ refs:'Ergonomics/manual handling good practice; SDS; ISO 45001; site chemical SOP.',
+ owner:'Production + Warehouse + EHS', evidence:'Trolley/hoist availability, training record, PPE issue, SOP/photo of charging method',
+ hazards:[
+  {source:'Heavy bag and awkward posture', event:'Back strain/shoulder injury while lifting 25–50 kg bag, twisting or lifting above shoulder height.', impact:'Musculoskeletal injury, sprain, lost productivity.', s:3,l:4,rs:3,rl:2, controls:'Use trolley/hoist/bag lifter; two-person lift for heavy bags; keep bag at waist height; provide platform height matching hopper; rotate task; train on posture; avoid carrying long distance.'},
+  {source:'Caustic flakes/chemical dust or sugar dust', event:'Dust/splash exposure while cutting/charging bags into tank/hopper.', impact:'Eye irritation/burn, skin burn, respiratory irritation; sugar dust housekeeping/pest issue.', s:4,l:3,rs:4,rl:1, controls:'Use local extraction or slow charging; face shield/goggles, chemical gloves and apron for caustic; dust mask where required; keep bag opener safe; immediate cleanup; keep chemical bags dry and labelled.'}
+ ]
+},
+{
+ id:'LAB', title:'Laboratory chemical testing / glassware / sample analysis', area:'Lab',
+ groups:[["lab","laboratory","testing","analysis","sample"],["chemical","acid","reagent","glassware","titration","bod","cod"]],
+ terms:["lab","laboratory","testing","analysis","sample","acid","reagent","glassware","titration","bod","cod","hot air oven","incubator"],
+ task:'Conduct lab sample analysis, reagent preparation, titration, glassware washing or oven/incubator handling.',
+ persons:'QA/lab technician, ETP sample collector, trainee',
+ existing:'Lab coat; goggles/gloves; labelled reagents; fume hood/ventilation if available; spill kit.',
+ permit:'Lab chemical handling authorization',
+ refs:'SDS; lab safety SOP; ISO 45001; food safety/GMP requirements.',
+ owner:'QA + EHS', evidence:'Reagent labels, SDS folder, eyewash test, calibration record, spill kit check',
+ hazards:[
+  {source:'Acid/alkali/reagent and glassware', event:'Chemical splash or glass cut during reagent preparation, titration or washing.', impact:'Eye/skin burn, cut injury, contamination of sample.', s:4,l:2,rs:4,rl:1, controls:'Use small quantity; add acid to water; label all reagents with date/concentration; face shield/goggles; use bottle carrier; dispose broken glass in dedicated bin; eyewash within reach.'},
+  {source:'Hot air oven/incubator/electrical lab equipment', event:'Burn/electric shock during sample drying, oven handling or equipment fault.', impact:'Minor/serious burn, shock, fire.', s:3,l:2,rs:3,rl:1, controls:'Heat-resistant gloves; equipment earthing; do not overload sockets; calibration/PM; keep flammables away from oven; switch off after use.'}
+ ]
+},
+{
+ id:'BATTERY-CHARGE', title:'Battery charging / forklift charging station', area:'Warehouse / FG',
+ groups:[["battery","charging","charger","forklift charging"],["forklift","stacker","pallet truck","lead acid","hydrogen"]],
+ terms:["battery","charging","charger","forklift charging","hydrogen","acid","lead acid","stacker","pallet truck"],
+ task:'Charge forklift/stacker/pallet truck battery or connect/disconnect charger.',
+ persons:'Forklift operator, warehouse team, maintenance, cleaner',
+ existing:'Designated charger; basic ventilation; PPE sometimes; fire extinguisher.',
+ permit:'Authorized battery charging only',
+ refs:'Battery charging safety; electrical safety; fire safety; ISO 45001.',
+ owner:'Warehouse + Maintenance + EHS', evidence:'Ventilation check, charger inspection, eyewash, no-smoking signage, PPE issue',
+ hazards:[
+  {source:'Hydrogen gas during charging and ignition source', event:'Battery explosion/fire due to poor ventilation, spark during connection or smoking/mobile charging nearby.', impact:'Acid splash, burns, eye injury, fire.', s:4,l:3,rs:4,rl:1, controls:'Ventilated charging zone; no smoking/no spark signage; switch off charger before disconnect; insulated tools; charger cable inspection; suitable extinguisher; keep metal objects away from terminals.'},
+  {source:'Battery acid/electrolyte and heavy battery', event:'Acid splash or crush injury during battery top-up/movement.', impact:'Chemical burn, eye injury, hand/foot crush.', s:4,l:2,rs:4,rl:1, controls:'Face shield/goggles, acid gloves/apron; eyewash/neutralizer; mechanical handling for battery; trained person only; spill tray.'}
+ ]
+},
+{
+ id:'FIRE-HYDRANT', title:'Fire pump / hydrant testing / hose drill', area:'Fire Pump Room',
+ groups:[["fire pump","hydrant","hose","fire tender","monitor"],["testing","drill","operation","pressure","pump"]],
+ terms:["fire pump","hydrant","hose","fire tender","monitor","testing","drill","operation","pressure","pump","nozzle"],
+ task:'Operate fire pump/hydrant hose/monitor for testing, drill or emergency response.',
+ persons:'Fire team, security, EHS, operators, persons nearby',
+ existing:'Fire pump installed; hose/nozzle; trained fire team; emergency contact; PPE available.',
+ permit:'Fire system test authorization / Drill plan',
+ refs:'NBC fire safety principles; IS 2190 for extinguishers; site emergency response plan; ISO 45001.',
+ owner:'EHS + Fire Team + Security + Engineering', evidence:'Pump test log, hose inspection, drill report, PPE photo, communication record',
+ hazards:[
+  {source:'High pressure fire hose/nozzle reaction force', event:'Hose whipping or person fall due to uncontrolled nozzle pressure during testing/drill.', impact:'Fall injury, shoulder strain, struck-by injury.', s:3,l:3,rs:3,rl:1, controls:'Minimum two-person hose handling; open valve gradually; trained nozzleman; clear communication; maintain footing; barricade test discharge area; inspect hose/coupling before use.'},
+  {source:'Wet floor, electrical equipment nearby', event:'Slip or water spray contacting electrical panels/equipment during test.', impact:'Slip injury, electrical short/shock, equipment damage.', s:4,l:2,rs:4,rl:1, controls:'Plan discharge direction; protect nearby panels; cordon wet area; housekeeping after test; use drain path; do not test toward live electrical equipment.'}
+ ]
+},
+{
+ id:'PET-BLOW', title:'PET blow moulding / preform oven / high pressure air', area:'Production Line / KHS',
+ groups:[["blow","mould","molding","preform","pet"],["oven","high pressure","air","mold","changeover"]],
+ terms:["blow moulding","blow molding","preform","pet","oven","mold","mould","high pressure air","stretch rod","heater"],
+ task:'Operate or maintain PET blow moulding machine, preform oven, mould changeover or high-pressure air system.',
+ persons:'Blow moulding operator, maintenance, helper',
+ existing:'Machine guards/interlocks; E-stop; pressure gauge; heat guards; operator training.',
+ permit:'LOTO + pressure release for maintenance/changeover',
+ refs:'Machine guarding; pressure system safety; LOTO SOP; ISO 45001; OEM manual.',
+ owner:'Production + Engineering', evidence:'Interlock test, pressure release checklist, mould changeover checklist, PPE issue',
+ hazards:[
+  {source:'High pressure compressed air and mould movement', event:'Sudden air release or moving mould crush during maintenance/changeover/jam removal.', impact:'Crush injury, eye/face injury, hearing damage.', s:4,l:3,rs:4,rl:1, controls:'Isolate and depressurise high-pressure air; verify zero energy; interlock functional; use OEM tools; no hand entry in auto mode; face shield during leak troubleshooting.'},
+  {source:'Preform oven/heater and hot mould', event:'Burn while clearing preform jam or handling hot mould/heater zone.', impact:'Hand/forearm burn, first aid/MTC.', s:3,l:3,rs:3,rl:1, controls:'Cool-down time; heat gloves; hot surface signage; guarded oven; use long tool for jam removal; heater isolation for maintenance.'}
+ ]
+},
+{
+ id:'PALLET-STACK', title:'Pallet stacking / racking / FG storage', area:'Warehouse / FG',
+ groups:[["pallet","racking","stacking","fg","finished goods","warehouse"],["storage","loading","unloading","stack","rack"]],
+ terms:["pallet","racking","stacking","fg","finished goods","warehouse","storage","rack","carton","collapse"],
+ task:'Store, stack, rack or retrieve finished goods pallets/cartons.',
+ persons:'Warehouse operator, forklift operator, checker, visitor',
+ existing:'Stacking practice; forklift used; some rack load signs; PPE; housekeeping.',
+ permit:'Warehouse operating authorization',
+ refs:'Material storage safety; ISO 45001; site warehouse SOP and traffic plan.',
+ owner:'Warehouse + EHS', evidence:'Stack height standard, rack inspection, damaged pallet segregation, aisle marking photo',
+ hazards:[
+  {source:'Unstable pallet/rack and over-stacking', event:'Pallet/carton collapse due to damaged pallet, over-height stack, poor wrapping or rack impact.', impact:'Crush injury, product loss, blocked exit/aisle.', s:4,l:3,rs:4,rl:1, controls:'Define max stacking height; inspect pallet before storage; shrink wrap integrity check; damaged pallet quarantine; rack load capacity display; rack guard; keep aisles/exits clear; weekly rack inspection.'},
+  {source:'Manual carton handling and repetitive lifting', event:'Strain injury during manual picking/repacking/stack correction.', impact:'Back strain, shoulder/wrist injury.', s:3,l:3,rs:3,rl:2, controls:'Use pallet truck/trolley; team lift for heavy load; maintain work height; job rotation; avoid twisting; manual handling training.'}
+ ]
+},
+{
+ id:'PUMP-MAINT', title:'Pump/valve/line maintenance and line break', area:'Utilities',
+ groups:[["pump","valve","line","pipe","flange","gasket"],["maintenance","line break","opening","repair","leak","replacement"]],
+ terms:["pump","valve","line","pipe","flange","gasket","line break","opening","repair","leak","replacement","mechanical seal"],
+ task:'Open/repair pump, valve, flange or process/utility line after isolation.',
+ persons:'Maintenance technician, operator, contractor, area owner',
+ existing:'Maintenance work permit; local isolation; drain valve; PPE; supervisor.',
+ permit:'Line Break Permit + LOTO + chemical/pressure clearance as applicable',
+ refs:'LOTO SOP; line break procedure; ISO 45001; SDS if chemical line; pressure system SOP.',
+ owner:'Maintenance + Area Owner + EHS', evidence:'Isolation checklist, zero-energy verification, drain/flush record, permit closure',
+ hazards:[
+  {source:'Residual pressure/chemical/hot liquid inside line', event:'Unexpected spray/release when flange/valve/pump opened without full drain/flush/depressurisation.', impact:'Chemical burn, scald, eye injury, slip, environmental spill.', s:4,l:3,rs:4,rl:1, controls:'Positive isolation; drain/vent to safe point; verify zero pressure and temperature; line content identification; break flange slowly from far side; face shield and chemical gloves; barricade; spill tray.'},
+  {source:'Rotating pump coupling and electrical energy', event:'Unexpected pump start or exposed coupling contact during maintenance.', impact:'Entanglement, crush, electric shock.', s:4,l:2,rs:4,rl:1, controls:'LOTO motor feeder and local isolator; try-start test; coupling guard before restart; remove tools before energisation; handover checklist.'}
+ ]
+}
+];
+
+const energyLibraries = {
+ chemical:{source:'Chemical exposure / incompatible substance', event:'Splash, fume release or wrong mixing during handling/transfer/sampling.', impact:'Eye/skin burn, respiratory irritation, spill and slip.', controls:'Use SDS; label container/line; closed transfer where possible; face shield/goggles/compatible gloves; eyewash/shower; spill kit; segregate incompatible chemicals.', ppe:'Chemical goggles, face shield, chemical gloves, apron, safety shoes', s:4,l:3, refs:'SDS; Chemical safety SOP; ISO 45001'},
+ rotating:{source:'Rotating/moving machinery', event:'Hand, glove or clothing caught in rotating/nip point during operation/cleaning/adjustment.', impact:'Crush, laceration, fracture, entanglement.', controls:'Fixed/interlocked guarding; stop-isolate-try-test before hand entry; use tools; E-stop test; no loose clothing/gloves near rotating parts.', ppe:'Helmet, safety shoes, close-fit clothing, cut-resistant gloves only when machine stopped', s:4,l:3, refs:'Machine guarding; LOTO SOP; ISO 45001'},
+ pressure:{source:'Stored pressure / compressed fluid or gas', event:'Sudden release, hose whip, coupling failure or projectile during opening/connection.', impact:'Eye/face injury, laceration, burn/cold burn, equipment damage.', controls:'Depressurise and vent; rated hose/fittings; whip-check; open slowly from safe position; pressure gauge/SRV test; barricade line of fire.', ppe:'Face shield, goggles, gloves suitable for media, safety shoes', s:4,l:3, refs:'Pressure system SOP; LOTO; ISO 45001'},
+ electrical:{source:'Electrical energy', event:'Electric shock or arc flash during testing, panel opening or wrong isolation.', impact:'Fatal shock, burn, fire.', controls:'Authorized electrician; isolate-lock-tag-try-test; insulated tools; rubber mat; panel key control; arc-rated PPE if energized work unavoidable.', ppe:'Electrical gloves as rated, face shield, arc-rated PPE if required, safety shoes', s:5,l:3, refs:'Electrical safety requirements; LOTO SOP; ISO 45001'},
+ vehicle:{source:'Vehicle/mobile equipment movement', event:'Struck-by, collision, reverse accident or load fall during movement/loading.', impact:'Fatality, crush, fracture, property damage.', controls:'Segregated route; speed control; spotter; horn at junction; wheel chocks; route marking; operator authorization; no pedestrian in loading zone.', ppe:'Helmet, safety shoes, reflective vest', s:5,l:3, refs:'Traffic Management Plan; ISO 45001'},
+ height:{source:'Gravity / work at height', event:'Person fall or dropped object from elevated work area.', impact:'Fatality, fracture, head injury.', controls:'Avoid WAH where possible; certified platform/scaffold; 100% tie-off; edge protection; barricade below; tool lanyards; rescue plan.', ppe:'Helmet with chin strap, full body harness, safety shoes, gloves', s:5,l:3, refs:'WAH SOP; ISO 45001'},
+ thermal:{source:'Hot surface/steam/fire potential', event:'Burn/fire due to contact with hot surface, steam release or ignition of combustible material.', impact:'Burn injury, fire, equipment damage.', controls:'Cool-down/isolation; insulation/guard; heat-resistant gloves; remove combustibles; fire watch; extinguisher access.', ppe:'Heat gloves, face shield/goggles, cotton clothing, safety shoes', s:4,l:3, refs:'Fire safety; Hot work SOP; ISO 45001'},
+ ergonomic:{source:'Manual handling / awkward posture', event:'Muscle strain from lifting, twisting, pushing, pulling or repetitive task.', impact:'Back/shoulder/wrist injury.', controls:'Mechanical aid; two-person lift; correct working height; job rotation; reduce load; manual handling training.', ppe:'Safety shoes, gloves as per material', s:3,l:3, refs:'Ergonomics/manual handling practice; ISO 45001'},
+ biological:{source:'Biological contamination / wastewater', event:'Contact with sewage, sludge, wastewater aerosol or contaminated surface.', impact:'Skin infection, gastrointestinal illness, odour exposure.', controls:'Avoid direct contact; gloves/gumboots; hand hygiene; cover pits; vaccination/health awareness where applicable; disinfection and housekeeping.', ppe:'Nitrile gloves, gum boots, face mask/face shield as required', s:3,l:3, refs:'Hygiene SOP; ISO 45001/14001'}
+};
+
+function detectEnergies(text){
+  const found=[];
+  if(hasAny(text,["chemical","caustic","acid","naoh","phosphoric","nitric","hypo","chlorine","reagent","dosing","cip","sds","sample"])) found.push('chemical');
+  if(hasAny(text,["rotating","rpm","unguarded","conveyor","roller","belt","chain","sprocket","labeler","filler","capper","pump coupling","machine"])) found.push('rotating');
+  if(hasAny(text,["pressure","compressed","hose","co2","steam","air receiver","pneumatic","hydraulic","line break","flange","prv","srv"])) found.push('pressure');
+  if(hasAny(text,["electrical","panel","mcc","pcc","ht","lt","transformer","breaker","cable","earthing","arc","shock"])) found.push('electrical');
+  if(hasAny(text,["forklift","vehicle","truck","tanker","loading","unloading","reverse","traffic","pallet truck","stacker"])) found.push('vehicle');
+  if(hasAny(text,["height","roof","mezzanine","ladder","platform","scaffold","edge","lifeline","harness"])) found.push('height');
+  if(hasAny(text,["hot","steam","boiler","burner","welding","cutting","grinding","shrink","tunnel","heater","oven","fire","ldo","hsd","diesel"])) found.push('thermal');
+  if(hasAny(text,["manual","lifting","handling","bag","ergonomic","push","pull","carry","repetitive"])) found.push('ergonomic');
+  if(hasAny(text,["stp","etp","sewage","sludge","wastewater","effluent","biological"])) found.push('biological');
+  return found.length?found:['ergonomic'];
+}
+
+function scoreScenario(text, sc){
+  let score=0;
+  (sc.terms||[]).forEach(t=>{ if(has(text,t)) score += t.length>7?2:1; });
+  (sc.groups||[]).forEach(g=>{ if(hasAny(text,g)) score+=4; else score-=2; });
+  return score;
+}
+
+function bestScenario(text){
+  let best=null, bestScore=-999;
+  scenarios.forEach(sc=>{ const s=scoreScenario(text,sc); if(s>bestScore){ best=sc; bestScore=s; }});
+  let confidence='Low';
+  if(bestScore>=12) confidence='High'; else if(bestScore>=7) confidence='Medium';
+  return {scenario:best, score:bestScore, confidence};
+}
+
+function buildFallback(input){
+  const text=norm([input.area,input.activity,input.sub,input.mode,input.condition].join(' '));
+  const energies=detectEnergies(text).slice(0,3);
+  const hazards=energies.map(key=>{
+    const e=energyLibraries[key];
+    return {source:e.source, event:specificFallbackEvent(key,input,e.event), impact:e.impact, s:e.s, l:adjustLikelihood(e.l,input.mode,text), rs:e.s, rl:key==='vehicle'||key==='height'||key==='electrical'?1:2, controls:e.controls, refs:e.refs, ppe:e.ppe};
+  });
+  return {
+    id:'DYNAMIC-FALLBACK', title:'Dynamic hazard-energy analysis', area: input.area || inferArea(text),
+    task:`Analyse ${input.sub || input.activity} based on identified hazard energy: ${energies.join(', ')}.`,
+    persons: inferPersons(text),
+    existing:'Basic supervision; general PPE; area SOP if available; operator awareness; housekeeping and emergency response arrangements.',
+    permit: inferPermit(text, energies), refs: uniqueJoin(hazards.map(h=>h.refs)), owner: inferOwner(text), evidence:'Approved JSA/HIRA, work permit if applicable, training record, photo of controls, supervisor verification', hazards
+  };
+}
+
+function specificFallbackEvent(key,input,base){
+  const task = input.sub || input.activity || 'the task';
+  if(key==='chemical') return `During ${task}, chemical can splash/leak or be wrongly mixed because the exact line/container condition may not be confirmed before handling.`;
+  if(key==='rotating') return `During ${task}, hand or clothing can contact a moving nip/rotating part if cleaning, adjustment or jam removal is attempted without full stop/isolation.`;
+  if(key==='pressure') return `During ${task}, stored pressure can release suddenly from hose, flange, valve or coupling if depressurisation is incomplete.`;
+  if(key==='electrical') return `During ${task}, shock/arc flash can occur due to wrong isolation, exposed live part, damaged cable or working inside panel without verification.`;
+  if(key==='vehicle') return `During ${task}, moving vehicle/mobile equipment can strike pedestrian or destabilise load due to blind spot, reversing or poor segregation.`;
+  if(key==='height') return `During ${task}, person or object can fall from height due to unprotected edge, poor platform/ladder condition or lack of anchorage.`;
+  if(key==='thermal') return `During ${task}, burn/fire can occur due to hot surface, steam, spark or ignition source contacting combustible material.`;
+  if(key==='biological') return `During ${task}, contact with wastewater/sludge or aerosols can cause hygiene exposure and slip due to wet surface.`;
+  return base;
+}
+
+function adjustLikelihood(l,mode,text){
+  let x=l;
+  if(/breakdown|non-routine|contractor|commissioning|startup|shutdown/.test(norm(mode)+' '+text)) x++;
+  if(/unguarded|live|bypass|unknown|leak|jerk|loose|height|confined/.test(text)) x++;
+  return clamp(x,1,5);
+}
+function inferArea(text){
+  if(hasAny(text,["co2","tanker"])) return 'CO2 Yard';
+  if(hasAny(text,["boiler","steam","ldo"])) return 'Boiler House';
+  if(hasAny(text,["compressor","air receiver"])) return 'Compressor Room';
+  if(hasAny(text,["etp","stp","effluent","sludge"])) return 'ETP / STP';
+  if(hasAny(text,["wtp","ro","uf","hypo"])) return 'WTP';
+  if(hasAny(text,["forklift","warehouse","pallet","fg"])) return 'Warehouse / FG';
+  if(hasAny(text,["electrical","mcc","panel","ht","transformer"])) return 'Electrical / MCC / HT';
+  if(hasAny(text,["labeler","filler","capper","conveyor","shrink","khs"])) return 'Production Line / KHS';
+  if(hasAny(text,["lab","testing","reagent"])) return 'Lab';
+  return 'Concerned Area';
+}
+function inferPersons(text){
+  const p=[];
+  if(hasAny(text,["contractor","construction","welding","height"])) p.push('Contractor worker');
+  if(hasAny(text,["operator","production","line","khs","cip"])) p.push('Operator');
+  if(hasAny(text,["maintenance","repair","breakdown","electrical","mechanical"])) p.push('Maintenance technician');
+  if(hasAny(text,["forklift","warehouse","truck","tanker"])) p.push('Driver / warehouse team / pedestrian');
+  if(hasAny(text,["lab","qa","sample"])) p.push('QA/lab technician');
+  return p.length?uniqueJoin(p, ', '):'Operator, helper, supervisor, persons nearby';
+}
+function inferOwner(text){
+  if(hasAny(text,["boiler","compressor","co2","wtp","etp","stp"])) return 'Utilities/Environment + EHS';
+  if(hasAny(text,["electrical","panel","mcc","ht"])) return 'Electrical + EHS';
+  if(hasAny(text,["forklift","warehouse","pallet"])) return 'Warehouse/Logistics + EHS';
+  if(hasAny(text,["labeler","filler","capper","conveyor","khs","cip"])) return 'Production + Engineering + EHS';
+  if(hasAny(text,["hot work","welding","height","contractor"])) return 'Area Owner + Contractor Supervisor + EHS';
+  return 'Area Owner + EHS';
+}
+function inferPermit(text,energies){
+  const permits=[];
+  if(energies.includes('height')) permits.push('Work at Height Permit');
+  if(energies.includes('electrical')) permits.push('Electrical Work Permit + LOTO');
+  if(energies.includes('chemical')) permits.push('Chemical Handling / Line Break Clearance if line opened');
+  if(energies.includes('pressure')) permits.push('Pressure release / Line Break Permit');
+  if(energies.includes('thermal') && hasAny(text,["welding","cutting","grinding","hot work"])) permits.push('Hot Work Permit');
+  if(hasAny(text,["confined","tank","pit","vessel","sump"])) permits.push('Confined Space Entry Permit');
+  return permits.length?uniqueJoin(permits):'Job authorization / SOP compliance';
+}
+
+function getInputs(){
+  return [...document.querySelectorAll('#inputBody tr')].map((tr,idx)=>({
+    no:idx+1,
+    area:tr.querySelector('.area').value.trim(),
+    activity:tr.querySelector('.activity').value.trim(),
+    sub:tr.querySelector('.sub').value.trim(),
+    mode:tr.querySelector('.mode').value.trim(),
+    condition:tr.querySelector('.condition').value.trim()
+  })).filter(r=>r.activity || r.sub || r.condition);
+}
+
+function createRowsForInput(input){
+  const text=norm([input.area,input.activity,input.sub,input.mode,input.condition].join(' '));
+  let {scenario, score, confidence}=bestScenario(text);
+  let base;
+  if(score>=7){ base=scenario; }
+  else { base=buildFallback(input); confidence='Low'; }
+  const mode=document.getElementById('riskMode').value;
+  const hazards = (base.hazards||[]).map(h=>{
+    let l=adjustLikelihood(h.l||3,input.mode,text);
+    let s=h.s||4;
+    if(mode==='conservative'){ l=clamp(l+1,1,5); }
+    const score=s*l;
+    const level=riskLevel(score);
+    const rs=h.rs||s;
+    let rl=h.rl || Math.max(1,l-2);
+    if(level==='Extreme' && rl<2) rl=2;
+    const rscore=rs*rl;
+    return {...h, s,l, score, level, rs, rl, rscore, rlevel:riskLevel(rscore)};
+  });
+  const compact = document.getElementById('outputStyle').value==='single';
+  if(compact){
+    const s = Math.max(...hazards.map(h=>h.s));
+    const l = Math.max(...hazards.map(h=>h.l));
+    const score=s*l;
+    const rs=Math.max(...hazards.map(h=>h.rs));
+    const rl=Math.max(...hazards.map(h=>h.rl));
+    const rscore=rs*rl;
+    return [{
+      ...input, base, confidence, matchTitle:base.title,
+      situation: base.task,
+      source: uniqueJoin(hazards.map(h=>h.source),' | '),
+      event: uniqueJoin(hazards.map(h=>h.event),' | '),
+      impact: uniqueJoin(hazards.map(h=>h.impact),' | '),
+      persons: base.persons,
+      existing: base.existing,
+      s,l,score,level:riskLevel(score),
+      addControls: uniqueJoin(hazards.map(h=>h.controls),' | '),
+      rs,rl,rscore,rlevel:riskLevel(rscore),
+      ppe: uniqueJoin(hazards.map(h=>h.ppe || inferPPE(h.source)),'; '),
+      permit: base.permit,
+      refs: base.refs || uniqueJoin(hazards.map(h=>h.refs)),
+      owner: base.owner,
+      evidence: base.evidence
+    }];
+  }
+  return hazards.map(h=>({
+    ...input, base, confidence, matchTitle:base.title,
+    situation: base.task,
+    source:h.source,
+    event:h.event,
+    impact:h.impact,
+    persons: base.persons,
+    existing: base.existing,
+    s:h.s,l:h.l,score:h.score,level:h.level,
+    addControls:h.controls,
+    rs:h.rs,rl:h.rl,rscore:h.rscore,rlevel:h.rlevel,
+    ppe:h.ppe || inferPPE(h.source),
+    permit: base.permit,
+    refs: base.refs || h.refs,
+    owner: base.owner,
+    evidence: base.evidence
+  }));
+}
+function inferPPE(source){
+  const t=norm(source);
+  const p=[];
+  if(hasAny(t,["chemical","caustic","acid","hypo"])) p.push('Chemical goggles, face shield, chemical gloves, apron, safety shoes');
+  if(hasAny(t,["electrical"])) p.push('Electrical PPE as per voltage, arc face shield if required, safety shoes');
+  if(hasAny(t,["height","gravity"])) p.push('Helmet with chin strap, full body harness, safety shoes');
+  if(hasAny(t,["hot","steam","thermal"])) p.push('Heat-resistant gloves, face shield, safety shoes');
+  if(hasAny(t,["vehicle","forklift"])) p.push('Helmet, safety shoes, reflective jacket');
+  if(hasAny(t,["rotating","moving"])) p.push('Helmet, safety shoes, close-fit clothing; gloves only when stopped');
+  return p.length?uniqueJoin(p):'Helmet, safety shoes, gloves, goggles as task-specific';
+}
+function targetFor(level){
+  const mode=document.getElementById('targetMode').value;
+  if(mode==='seven') return 'Within 7 days';
+  if(mode==='fifteen') return 'Within 15 days';
+  if(level==='Extreme') return 'Immediate before work start / same shift';
+  if(level==='High') return 'Within 7 days / before regularization';
+  if(level==='Medium') return 'Within 15 days';
+  return 'Within 30 days / routine monitoring';
+}
+
+function td(text, cls=''){
+  const cell=document.createElement('td');
+  cell.textContent=text==null?'':String(text);
+  if(cls) cell.className=cls;
+  cell.contentEditable='true';
+  return cell;
+}
+function generateHIRA(){
+  const inputs=getInputs();
+  const tbody=document.getElementById('outputBody'); tbody.innerHTML='';
+  let rows=[];
+  inputs.forEach(input=> rows.push(...createRowsForInput(input)) );
+  rows.forEach((r,idx)=>{
+    const tr=document.createElement('tr');
+    tr.appendChild(td(idx+1));
+    tr.appendChild(td(`${document.getElementById('site').value}\n${document.getElementById('dept').value}`));
+    tr.appendChild(td(r.area || r.base.area || inferArea(norm([r.activity,r.sub,r.condition].join(' ')))));
+    tr.appendChild(td(r.activity || 'Task not specified'));
+    tr.appendChild(td(r.sub || r.condition || 'Sub activity to be confirmed'));
+    tr.appendChild(td(`${r.situation}\nMode: ${r.mode || 'Routine Operation'}${r.condition?`\nSite condition: ${r.condition}`:''}`));
+    tr.appendChild(td(r.source));
+    tr.appendChild(td(r.event));
+    tr.appendChild(td(r.impact));
+    tr.appendChild(td(r.persons));
+    tr.appendChild(td(r.existing));
+    tr.appendChild(td(r.s));
+    tr.appendChild(td(r.l));
+    tr.appendChild(td(r.score));
+    tr.appendChild(td(r.level, riskClass(r.level)));
+    tr.appendChild(td(r.addControls));
+    tr.appendChild(td(r.rs));
+    tr.appendChild(td(r.rl));
+    tr.appendChild(td(r.rscore));
+    tr.appendChild(td(r.rlevel, riskClass(r.rlevel)));
+    tr.appendChild(td(r.ppe));
+    tr.appendChild(td(r.permit));
+    tr.appendChild(td(r.refs));
+    tr.appendChild(td(r.owner));
+    tr.appendChild(td(targetFor(r.level)));
+    tr.appendChild(td(r.evidence));
+    tr.appendChild(td(r.confidence==='Low' ? 'Auto-generated with dynamic logic – EHS review mandatory before issue.' : 'Auto-generated from specific beverage plant scenario – verify site condition before approval.'));
+    tr.appendChild(td(`${r.confidence} – ${r.matchTitle}`, 'confidence-'+r.confidence.toLowerCase()));
+    tbody.appendChild(tr);
+  });
+  updateStats(rows);
+  if(!rows.length){ alert('Please enter at least one Activity/Sub Activity.'); }
+}
+function riskLevelFromScore(score){ if(score>=16) return 'Extreme'; if(score>=10) return 'High'; if(score>=5) return 'Medium'; return 'Low'; }
+
+async function generateWithClaude(){
+  const inputs = getInputs();
+  const status = document.getElementById('claudeStatus');
+  const btn = document.getElementById('claudeBtn');
+  if(!inputs.length){ alert('Please enter at least one Activity/Sub Activity.'); return; }
+
+  btn.disabled = true;
+  const oldLabel = btn.textContent;
+  btn.textContent = '⏳ Claude is analysing...';
+  status.innerHTML = '<div style="padding:10px 14px;border-radius:10px;background:#ede9fe;color:#5b21b6;">Sending '+inputs.length+' activity(ies) to Claude AI and building your HIRA…</div>';
+
+  try{
+    const resp = await fetch('/.netlify/functions/claude', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify({
+        activities: inputs,
+        style: document.getElementById('outputStyle').value,
+        meta:{
+          site: document.getElementById('site').value,
+          dept: document.getElementById('dept').value,
+          prepared: document.getElementById('prepared').value,
+          riskMode: document.getElementById('riskMode').value
+        }
+      })
+    });
+    const data = await resp.json();
+    if(!resp.ok){ throw new Error(data.error || ('Request failed: '+resp.status)); }
+
+    const rows = data.rows || [];
+    if(!rows.length){ throw new Error('Claude returned no rows. Try again or add more detail.'); }
+
+    const tbody = document.getElementById('outputBody');
+    tbody.innerHTML='';
+    const normRows = rows.map(r=>{
+      const s = clamp(+r.s||1,1,5), l = clamp(+r.l||1,1,5);
+      const rs = clamp(+r.rs||1,1,5), rl = clamp(+r.rl||1,1,5);
+      const score = s*l, rscore = rs*rl;
+      return {
+        area:r.area||'', activity:r.activity||'', sub:r.sub||'',
+        situation:r.situation||'', source:r.source||'', event:r.event||'',
+        impact:r.impact||'', persons:r.persons||'', existing:r.existing||'',
+        s, l, score, level:riskLevelFromScore(score),
+        addControls:r.addControls||'', rs, rl, rscore, rlevel:riskLevelFromScore(rscore),
+        ppe:r.ppe||'', permit:r.permit||'', refs:r.refs||'', owner:r.owner||'',
+        evidence:r.evidence||''
+      };
+    });
+
+    normRows.forEach((r,idx)=>{
+      const tr=document.createElement('tr');
+      tr.appendChild(td(idx+1));
+      tr.appendChild(td(`${document.getElementById('site').value}\n${document.getElementById('dept').value}`));
+      tr.appendChild(td(r.area));
+      tr.appendChild(td(r.activity));
+      tr.appendChild(td(r.sub));
+      tr.appendChild(td(r.situation));
+      tr.appendChild(td(r.source));
+      tr.appendChild(td(r.event));
+      tr.appendChild(td(r.impact));
+      tr.appendChild(td(r.persons));
+      tr.appendChild(td(r.existing));
+      tr.appendChild(td(r.s));
+      tr.appendChild(td(r.l));
+      tr.appendChild(td(r.score));
+      tr.appendChild(td(r.level, riskClass(r.level)));
+      tr.appendChild(td(r.addControls));
+      tr.appendChild(td(r.rs));
+      tr.appendChild(td(r.rl));
+      tr.appendChild(td(r.rscore));
+      tr.appendChild(td(r.rlevel, riskClass(r.rlevel)));
+      tr.appendChild(td(r.ppe));
+      tr.appendChild(td(r.permit));
+      tr.appendChild(td(r.refs));
+      tr.appendChild(td(r.owner));
+      tr.appendChild(td(targetFor(r.level)));
+      tr.appendChild(td(r.evidence));
+      tr.appendChild(td('AI-generated (Claude) – EHS review mandatory before issue.'));
+      tr.appendChild(td('Claude AI', 'confidence-high'));
+      tbody.appendChild(tr);
+    });
+
+    updateStats(normRows);
+    status.innerHTML = '<div style="padding:10px 14px;border-radius:10px;background:#dcfce7;color:#166534;">✅ Claude generated '+normRows.length+' HIRA row(s). Review and edit any cell before issue.</div>';
+    document.getElementById('outputPanel').scrollIntoView({behavior:'smooth'});
+  }catch(err){
+    status.innerHTML = '<div style="padding:10px 14px;border-radius:10px;background:#fee2e2;color:#991b1b;">❌ '+err.message+'</div>';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = oldLabel;
+  }
+}
+
+function updateStats(rows){
+  const high=rows.filter(r=>r.level==='High'||r.level==='Extreme').length;
+  const med=rows.filter(r=>r.level==='Medium').length;
+  const low=rows.filter(r=>r.level==='Low').length;
+  const review=rows.filter(r=>r.confidence==='Low').length;
+  document.getElementById('statRows').textContent=rows.length;
+  document.getElementById('statHigh').textContent=high;
+  document.getElementById('statMed').textContent=med;
+  document.getElementById('statLow').textContent=low;
+  document.getElementById('statReview').textContent=review;
+  const counts={}; rows.forEach(r=>{counts[r.matchTitle]=(counts[r.matchTitle]||0)+1});
+  const html=Object.entries(counts).slice(0,10).map(([k,v])=>`<span class="chip">${k}: ${v}</span>`).join('');
+  document.getElementById('topMatches').innerHTML = html ? `<b>Matched logic:</b> ${html}` : '';
+}
+
+function tableToArray(){
+  const table=document.getElementById('outputTable');
+  return [...table.rows].map(row=>[...row.cells].map(c=>c.innerText.replace(/\s+$/,'')));
+}
+function downloadExcel(){
+  const table=document.getElementById('outputTable').cloneNode(true);
+  [...table.querySelectorAll('td,th')].forEach(c=>{ c.removeAttribute('contenteditable'); });
+  const project=`<table><tr><td><b>Site</b></td><td>${escapeHtml(document.getElementById('site').value)}</td></tr><tr><td><b>Department</b></td><td>${escapeHtml(document.getElementById('dept').value)}</td></tr><tr><td><b>Prepared By</b></td><td>${escapeHtml(document.getElementById('prepared').value)}</td></tr><tr><td><b>Date</b></td><td>${escapeHtml(document.getElementById('date').value)}</td></tr></table><br>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>table{border-collapse:collapse;}td,th{border:1px solid #999;padding:6px;vertical-align:top;mso-number-format:'\\@';}th{background:#0f4c81;color:#fff;}.risk-low{background:#d8f3dc}.risk-medium{background:#fff3bf}.risk-high{background:#ffd6a5}.risk-extreme{background:#ffc9c9}</style></head><body>${project}${table.outerHTML}</body></html>`;
+  downloadBlob(html, fileName('Smart_HIRA','.xls'), 'application/vnd.ms-excel;charset=utf-8');
+}
+function downloadCSV(){
+  const arr=tableToArray();
+  const csv=arr.map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  downloadBlob(csv, fileName('Smart_HIRA','.csv'), 'text/csv;charset=utf-8');
+}
+function copyToExcel(){
+  const tsv=tableToArray().map(row=>row.map(v=>String(v).replace(/\t/g,' ').replace(/\n/g,' ')).join('\t')).join('\n');
+  navigator.clipboard.writeText(tsv).then(()=>alert('HIRA table copied. Paste directly into Excel.')).catch(()=>alert('Copy failed. Please select table manually.'));
+}
+function downloadBlob(content,name,type){
+  const blob=new Blob([content],{type});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+}
+function fileName(base,ext){
+  const d=new Date().toISOString().slice(0,10);
+  return `RCPL_Kurnool_Campa_Cola_${base}_${d}${ext}`;
+}
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+
+function loadSamples(){
+  clearInputs(false);
+  const samples=[
+    ['CIP / Syrup Room','CIP chemical handling','Collect caustic sample from black knob to check residue before flushing','Cleaning / Sanitation','Loose white tube jerks due to pressure; caustic/phosphoric acid possible'],
+    ['Production Line / KHS','Labeler machine operation','Operator standing near rotating labeler roller/star wheel during line running','Routine Operation','Rotating more than 100 RPM; exposed/unguarded touch point near discharge'],
+    ['CO2 Yard','CO2 unloading','Connect tanker hose to CO2 bullet and start transfer','Routine Operation','Vapour/liquid hose connection, low temperature line, tanker movement'],
+    ['Production Line / KHS','Filler/capper jam clearing','Remove jammed PET bottle near capper chuck and star wheel','Non-routine / Breakdown','Line stopped frequently; operator tries to clear manually'],
+    ['Boiler House','Boiler operation','Boiler blowdown and burner startup for LDO fired boiler','Routine Operation','Steam pressure and hot blowdown line'],
+    ['Warehouse / FG','Forklift operation','Loading finished goods pallets into truck','Routine Operation','Pedestrian crossing and reverse movement in warehouse'],
+    ['Electrical / MCC / HT','Electrical maintenance','Open MCC panel for troubleshooting conveyor motor starter','Maintenance','Need isolation and try-test; panel near wet floor risk'],
+    ['Project / Construction','Work at height','Install edge protection at mezzanine floor','Contractor Work','Open edge and tools at height'],
+    ['ETP / STP','ETP chemical dosing','Change chemical drum and collect treated water sample','Routine Operation','Acid/alkali/polymer splash and wet floor'],
+    ['Maintenance Workshop','Hot work','Welding bracket near production conveyor','Contractor Work','Nearby carton/plastic film combustible material']
+  ];
+  const trs=[...document.querySelectorAll('#inputBody tr')];
+  samples.forEach((s,i)=>{
+    trs[i].querySelector('.area').value=s[0];
+    trs[i].querySelector('.activity').value=s[1];
+    trs[i].querySelector('.sub').value=s[2];
+    trs[i].querySelector('.mode').value=s[3];
+    trs[i].querySelector('.condition').value=s[4];
+  });
+}
+function clearInputs(confirmIt=true){
+  if(confirmIt && !confirm('Clear all input rows?')) return;
+  document.querySelectorAll('#inputBody tr').forEach(tr=>{
+    tr.querySelector('.area').value='';
+    tr.querySelector('.activity').value='';
+    tr.querySelector('.sub').value='';
+    tr.querySelector('.mode').value='Routine Operation';
+    tr.querySelector('.condition').value='';
+  });
+  document.getElementById('outputBody').innerHTML='';
+  updateStats([]);
+}
+
+window.onload=init;
+</script>
+</body>
+</html>
