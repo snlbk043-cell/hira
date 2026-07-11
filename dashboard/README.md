@@ -1,4 +1,67 @@
-# RCPL Executive EHS KPI Dashboard
+# RCPL EHS Dashboards
+
+Two deliverables live here:
+
+1. **`RCPL_Integrated_EHS_Management_System.xlsm`** — the full enterprise EHS system
+   (24 registers + 24 dashboards + Executive + Leadership + Settings + Help). *Latest.*
+2. **`RCPL_Executive_EHS_KPI_Dashboard.xlsm`** — the original single executive dashboard.
+
+---
+
+# RCPL Integrated EHS Management System  *(RCPL_Integrated_EHS_Management_System.xlsm)*
+
+A complete, single-workbook corporate EHS system — structure adopted from the client's
+`HSE_Full_System.xlsx` and rebuilt as a fully **live, formula-driven, macro-enabled**
+workbook (55 sheets).
+
+## Gap analysis → what was added
+The original executive dashboard covered incidents, inspections, audits, training, PTW,
+statutory, CAPA. Integrating the client's HSE structure added the **missing registers &
+their dashboards**: Safety Walkthroughs, Safety Meetings, Safety Bulletins, Management
+Visits, Management Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority,
+Alcohol Tests, PTW Audits, NC Management, JSA Risk Assessment, HSE Observations,
+Corrective Actions, Internal/External Audits (split), plus **Leadership Review, Settings
+and Help** sheets.
+
+## Structure (55 sheets)
+| Group | Sheets |
+|---|---|
+| **Navigation** | `Home` |
+| **Rollups** | `Executive Dashboard`, `Leadership Review` |
+| **Per-register dashboards (24)** | `Dash · <register>` — one interactive dashboard per register |
+| **Registers (24)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident |
+| **Engine & config** | `Calculations`, `Master Data`, `Settings`, `Help` |
+
+## What's live
+- **Registers** keep the client's exact column layout with a 3-row header (emoji title /
+  legend / column headers), structured Tables, dropdown validation from **Master Data**,
+  and **auto-calculated** columns (Attendance %, Close-out %, Reach %, Compliance %,
+  Incident Ageing, CA Timeliness) written as formulas.
+- **Executive Dashboard** — TRIR, LTIFR, Total Incidents, Near Miss, Observation/Training/
+  CA closure %, Lost Days; a **Heinrich incident pyramid**, 12-month trend, leading-indicator
+  activity volumes, and a **RAG (🟢🟡🔴) compliance scorecard** that compares actuals to the
+  targets on the Settings sheet. Two global filters (Month, Department) drive everything.
+- **Leadership Review** — condensed corporate scorecard + incident severity mix + trends.
+- **24 per-register dashboards** — each with KPI tiles (total, closure %, key metric),
+  monthly-volume, category-breakdown and status-distribution charts, all `COUNTIFS`-driven.
+- **Settings** — man-hours, TRIR/LTIFR multipliers and RAG targets as named cells; change
+  a value and every rate/RAG light updates (the client file showed `#NAME?` here — fixed).
+- **Working VBA** — Refresh, Reset Filters, Home, Print, Export PDF; hyperlink navigation
+  throughout. Same MS-OVBA/MS-CFB builder, validated with `oletools`.
+
+With the shipped sample data the engine computes a realistic pyramid (≈29 near-miss → 1 LTI),
+TRIR ≈ 2.2, LTIFR ≈ 2.0, Training completion ≈ 62 %.
+
+## Regenerating
+```bash
+cd build && python3 hse_build.py   # -> ../RCPL_Integrated_EHS_Management_System.xlsm
+```
+`hse_data.py` (specs + sample data), `hse_build.py` (registers/engine/config),
+`hse_dash.py` (dashboards), `vba_code_hse.py` (VBA), `vbabin.py` (vbaProject.bin builder).
+
+---
+
+# RCPL Executive EHS KPI Dashboard  *(RCPL_Executive_EHS_KPI_Dashboard.xlsm)*
 
 **`RCPL_Executive_EHS_KPI_Dashboard.xlsm`** — a fully-functional, macro-enabled
 Excel workbook: a Fortune‑500‑style Executive Safety KPI dashboard for the
