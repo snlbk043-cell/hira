@@ -6,7 +6,25 @@ management system for FMCG manufacturing, rebuilt from the uploaded
 
 Every existing feature was **preserved** (all 93 original charts, conditional
 formatting, styling, and the data-entry UX). Nothing was removed. The workbook
-now has **52 sheets** and **98 charts**.
+now has **53 sheets** and **102 charts**.
+
+---
+
+## ⭐ Master leadership dashboard — `00_Leadership_Review`  *(first tab)*
+A single, board-ready corporate dashboard that consolidates **every register**
+into one smooth, interactive screen — navy/gold executive styling, gridlines off,
+landscape print-ready:
+- **Corporate Safety Scorecard (YTD):** TRIR · LTIFR · Observation Closure ·
+  Training Compliance · CA Closure · Lost Days — as KPI tiles.
+- **🎛 Leadership Filter (interactive, no VBA):** two dropdowns (Period + Department)
+  that instantly recalculate the **Incident Focus** tiles (Total / Near Miss /
+  Recordable / LTI+Fatal / Open / Overdue) via `SUMPRODUCT`.
+- **Risk & trend charts:** Incident Pyramid + 12-Month Trend.
+- **🚦 RAG Compliance Board:** actual vs. target with live green/amber/red
+  conditional formatting + Leading-Indicators chart.
+- **Enterprise Register Scorecard:** all 24 registers with Records / Closed / Open /
+  Closure % (color-scaled) + Incidents-by-Department chart.
+- **Auto Executive Summary** footer line.
 
 ---
 
