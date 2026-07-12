@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RCPL Safety Dashboard (web app)
 
-## Getting Started
+A real, hosted Executive & Leadership safety dashboard — day-wise/month-wise data
+entry with live-updating KPIs, trends, and infographics. Built with Next.js and
+deployed on Netlify with a managed Postgres database (Netlify DB / Neon).
 
-First, run the development server:
+**Live:** https://rcpl-ehs-safety-dashboard.netlify.app
+
+## What's here
+
+- `src/app/dashboard/executive` — KPI wall, Incident Pyramid, TRIR/LTIFR trend,
+  Leading-vs-Lagging trend, Root-Cause Pareto, Classification mix.
+- `src/app/dashboard/leadership` — Department League Table, System-Wide Action
+  Backlog, Risk Rating × Department matrix, auto-generated insights.
+- `src/app/entry/*` — day-wise data-entry forms + editable tables for the 8
+  tracked categories: Incidents, Training, HSE Observations, Inspections,
+  Safety Walkthroughs, Corrective Actions, PTW Audits, Risk Assessments (JSA).
+- `src/app/settings` — TRIR/LTIFR targets, industry benchmarks, monthly
+  man-hours, and the one-time Excel-data import button.
+- `src/app/api/*` — REST API routes (CRUD per register + `/api/summary`, the
+  aggregation engine that computes every dashboard number live from whatever's
+  in the database).
+- `netlify/database/migrations/001_init` — the Postgres schema. Netlify runs
+  this automatically on every deploy.
+- `src/data/seed/registers.json` — the real register data from the original
+  Excel workbook, used by `/api/seed` (POST) to seed history on first deploy.
+  Idempotent — safe to call more than once.
+
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Note: local `npm run dev` runs the Next.js app but won't have a live database
+connection unless you're authenticated with the Netlify CLI and linked to the
+site (`netlify link`, then `netlify dev`). Without that, API routes that touch
+the database will fail locally — this is expected; test against the deployed
+site instead, or link the CLI.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This site is deployed via the Netlify MCP tooling / `netlify-cli`, not a
+git-triggered build (the site isn't connected to auto-deploy on push). To ship
+a change:
 
-## Learn More
+```bash
+cd webapp
+npm run build   # sanity-check the build locally first
+# then deploy via whichever Netlify tooling is available in your session
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Design notes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Kept deliberately separate from the pre-existing HIRA generator at the repo
+  root (`index.html` + `netlify/functions/claude.js`) — different Netlify
+  site, different purpose, never touched by this app.
+- The data model here is a trimmed version of the 24-tracker Excel system —
+  just the 8 categories that drive Executive/Leadership decisions, not the
+  full register set. The Excel workbook (`../dashboard/`) remains the
+  full-detail, offline-first system; this app is the live, always-on
+  companion for day-to-day entry and board-level review.
+- `/api/summary` re-implements the same TRIR/LTIFR/leading-lagging/department-
+  score logic as the Excel Calculations sheet, as SQL aggregation instead of
+  spreadsheet formulas.
