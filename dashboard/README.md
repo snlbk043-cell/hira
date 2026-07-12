@@ -32,6 +32,28 @@ and Help** sheets.
 | **Registers (24)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident |
 | **Engine & config** | `Calculations`, `Master Data`, `Settings`, `Help` |
 
+## Round 3: every tracker on the Executive Dashboard + rich per-tracker analysis (131 charts)
+- **Executive Dashboard KPI wall** now carries a headline KPI from **all 24 trackers** (not
+  a subset) — e.g. Toolbox Talks (# + Avg Attendance %), JSA (# + % Approved), Workplace/
+  Equipment Inspections (# + Closure %/Critical Findings), Safety Meetings/Bulletins/Visits/
+  Reviews (# + Close-out %/Reach %/Attendance %), Internal/External Audits (# + NCs), Safety
+  Awards, Stop Work Authority, Alcohol Tests (+ Positive % on the lagging side), Unsafe Act/
+  Condition reporting + closure %, NC Management closure %, alongside the incident-driven
+  lagging KPIs (TRIR, LTIFR, Recordable, Near Miss, First Aid, Lost Days, Disciplinary). ~49
+  variance cards total, split into 🟥 Lagging / 🟩 Leading bands — **every card is a hyperlink
+  that drills straight into that tracker's own dashboard.**
+- **Full RCPL executive chart suite** — all of the following are on the Executive Dashboard,
+  none missing: Monthly Incident Trend, First Aid Trend, Near Miss Trend, TRIR & LTIFR Trend
+  (dual-axis), Unsafe Act vs Unsafe Condition (stacked), Incident Classification (doughnut),
+  Root Cause Pareto, Department-wise Safety Score, Safety Observation Trend (area), Monthly
+  Performance Radar, Heinrich Incident Pyramid, Risk Heat Map (5×5-style, colour-scaled), Top
+  10 Unsafe Acts / Unsafe Conditions / High-Risk Areas, and 6 compliance gauges (Training,
+  PTW, Obs Closure, CA Closure, Inspection Closure, NC Closure).
+- **Every one of the 24 tracker dashboards** now mirrors the client's own `Dashboard – X`
+  analysis layout: **8 KPI tiles** (volume/status row + tracker-specific metrics row),
+  Monthly Volume + primary Category Breakdown + secondary Distribution charts, a Department
+  Performance chart, and a live **Monthly Performance Matrix** (key measures × Jan–Dec + YTD).
+
 ## What's live
 - **Registers** keep the client's exact column layout with a 3-row header (emoji title /
   legend / column headers), structured Tables, dropdown validation from **Master Data**,

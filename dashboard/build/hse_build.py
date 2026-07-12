@@ -95,6 +95,8 @@ class EHS:
         F["set_val"]=self._fmt(font_name=seg,font_size=10,bold=True,font_color=BLUE_D,align="center",
             valign="vcenter",bg_color=AMBER_L,border=1,border_color="#E2C97A")
         F["set_note"]=self._fmt(font_name=seg,font_size=9,italic=True,font_color=GREY_M,align="left",valign="vcenter")
+        F["heat"]=self._fmt(font_name=seg,font_size=9,bold=True,align="center",valign="vcenter",
+            border=1,border_color=WHITE,num_format="0")
 
     def cardfmt(self, accent, kind):
         key=("card",accent,kind)
@@ -310,13 +312,14 @@ class EHS:
         self.wb.define_name("dCrit","="+self._dCritCell)
 
         # ---- executive variance engine (period vs prior period) ----
-        self._exec_engine(ws, r)
-        r += 92
+        r = self._exec_engine(ws, r)
+        # ---- cross-tracker analytics (Register-Month filtered: Pareto, heat map, dept score, Top-10) ----
+        r = self._exec_analytics(ws, r)
         # ---- per-register calc blocks ----
         cur=r
         for spec in HD.REGISTERS:
             self.RR[spec["key"]]=self._register_calc(ws, spec, cur)
-            cur += 17
+            cur += 26
         ws.write_url(0,1,"internal:'Home'!A1",F["note"],"Home")
 
     def _cf(self, ws, r, c, formula, fmt=None):
@@ -417,7 +420,8 @@ class EHS:
         self.RR["_rag"]={"first":gr,"last":gr+3,"c":gc}
 
     def _exec_engine(self, ws, r0):
-        """Period-aware executive engine: 12-month series + Cur/Prior masks + variance."""
+        """Period-aware executive engine: 12-month series + Cur/Prior masks + variance.
+        Returns the next free row so callers can chain further calc blocks safely."""
         F=self.F
         inc=spec_of("incident"); Cls=rng(inc,"Classification"); IM=rng(inc,"Month")
         ID=rng(inc,"Department"); ILd=rng(inc,"Lost Days")
@@ -443,16 +447,18 @@ class EHS:
             ws.write_formula(rr,4,'=IF(%s=1,IF(ROUNDUP(%s/3,0)=%s-1,1,0),IF(%s=%s-1,1,0))'%(isq,cc,curq,cc,curm),F["td"],0)
         curmask="Calculations!$D$%d:$D$%d"%(hr+1,hr+12)
         prmask="Calculations!$E$%d:$E$%d"%(hr+1,hr+12)
+        self._month_cat_range="Calculations!$B$%d:$B$%d"%(hr+1,hr+12)
         nmonths_cur="SUMPRODUCT(%s)"%curmask.replace("Calculations!","Calculations!")
 
         # ---- 12-month series matrix (col F=5 onward) ----
-        scol={}; c0=5
+        scol={}; scol_col={}; c0=5
         def series(name, per_month):
             nonlocal c0
             ws.write(hr-1,c0,name,F["th"])
             for i,mn in enumerate(MONTHS):
                 ws.write_formula(hr+i,c0,"="+per_month(mn),F["tdn"],0)
             scol[name]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12)
+            scol_col[name]=xl_col_to_name(c0)
             c0+=1
         # incident classification counts
         def inc_cls(v): return lambda mn:'COUNTIFS(%s,"%s",%s,"%s",%s,dCrit)'%(Cls,v,IM,mn,ID)
@@ -478,6 +484,19 @@ class EHS:
             s=spec_of(key)
             dep=(",%s,dCrit"%rng(s,"Department")) if has(s,"Department") else ""
             return lambda mn:'COUNTIFS(%s,"%s",%s,"%s"%s)'%(rng(s,statusheader),val,rng(s,"Month"),mn,dep)
+        def rsum(key, colname):
+            s=spec_of(key)
+            dep=(",%s,dCrit"%rng(s,"Department")) if has(s,"Department") else ""
+            return lambda mn:'SUMIFS(%s,%s,"%s"%s)'%(rng(s,colname),rng(s,"Month"),mn,dep)
+        def rsum2(key, c1, c2):
+            s=spec_of(key)
+            dep=(",%s,dCrit"%rng(s,"Department")) if has(s,"Department") else ""
+            return lambda mn:'SUMIFS(%s,%s,"%s"%s)+SUMIFS(%s,%s,"%s"%s)'%(
+                rng(s,c1),rng(s,"Month"),mn,dep,rng(s,c2),rng(s,"Month"),mn,dep)
+        def rvalcount(key, colname, val):
+            s=spec_of(key)
+            dep=(",%s,dCrit"%rng(s,"Department")) if has(s,"Department") else ""
+            return lambda mn:'COUNTIFS(%s,"%s",%s,"%s"%s)'%(rng(s,colname),val,rng(s,"Month"),mn,dep)
         series("disc", rcount("disc"))
         s_nc=spec_of("nc")
         series("nc_open", lambda mn:'COUNTIFS(%s,"Open",%s,"%s",%s,dCrit)+COUNTIFS(%s,"Overdue",%s,"%s",%s,dCrit)'%(
@@ -504,36 +523,120 @@ class EHS:
         s_ua=spec_of("unsafeact"); s_uc=spec_of("unsafecond")
         series("unsafe_reports", lambda mn:'COUNTIFS(%s,"%s",%s,dCrit)+COUNTIFS(%s,"%s",%s,dCrit)'%(
             rng(s_ua,"Month"),mn,rng(s_ua,"Department"),rng(s_uc,"Month"),mn,rng(s_uc,"Department")))
+        # trend-chart-only series (Unsafe Act vs Condition, monthly TRIR/LTIFR)
+        series("ua_m", rcount("unsafeact"))
+        series("uc_m", rcount("unsafecond"))
+
+        # ---- full tracker-coverage series (headline KPI per register) ----
+        series("toolbox_att_actual", rsum("toolbox","Actual Attendees"))
+        series("toolbox_att_target", rsum("toolbox","Target Attendees"))
+        series("jsa_approved", rstatus("jsa","Approval Status","Approved"))
+        series("wpinsp_total", rcount("wpinsp"))
+        series("wpinsp_closed", rstatus("wpinsp","Status","Closed"))
+        series("eqinsp_total", rcount("eqinsp"))
+        series("eqinsp_critical", rsum("eqinsp","Critical Findings"))
+        series("walk_total", rcount("walk"))
+        series("meetings_raised", rsum("meetings","Action Items Raised"))
+        series("meetings_closed", rsum("meetings","Actions Closed"))
+        series("bulletins_total", rcount("bulletins"))
+        series("bulletins_target", rsum("bulletins","Target Reach"))
+        series("bulletins_actual", rsum("bulletins","Actual Reach"))
+        series("drills_target", rsum("drills","Target Participants"))
+        series("drills_actual", rsum("drills","Actual Participants"))
+        series("iaudit_total", rcount("iaudit"))
+        series("iaudit_nc", rsum2("iaudit","Minor NC","Major NC"))
+        series("eaudit_total", rcount("eaudit"))
+        series("eaudit_nc", rsum2("eaudit","Minor NC","Major NC"))
+        series("mgmtvisit_total", rcount("mgmtvisit"))
+        series("mgmtvisit_raised", rsum("mgmtvisit","Actions Raised"))
+        series("mgmtvisit_closed", rsum("mgmtvisit","Actions Closed"))
+        series("mgmtreview_total", rcount("mgmtreview"))
+        series("mgmtreview_attended", rsum("mgmtreview","Members Attended"))
+        series("mgmtreview_invited", rsum("mgmtreview","Members Invited"))
+        series("awards_total", rcount("awards"))
+        series("swa_total", rcount("swa"))
+        series("alcohol_total", rcount("alcohol"))
+        series("alcohol_positive", rvalcount("alcohol","Result","Positive"))
+        series("unsafeact_total", rcount("unsafeact"))
+        series("unsafeact_closed", rstatus("unsafeact","Status","Closed"))
+        series("unsafecond_total", rcount("unsafecond"))
+        series("unsafecond_closed", rstatus("unsafecond","Status","Closed"))
+        series("nc_total", rcount("nc"))
+        series("nc_closed", rstatus("nc","Status","Closed"))
+
+        # monthly TRIR/LTIFR trend (direct per-month reference to recordable/ltifat columns)
+        rc_col=scol_col["recordable"]; lf_col=scol_col["ltifat"]
+        ws.write(hr-1,c0,"trir_m",F["th"])
+        for i in range(12):
+            ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*TRIRmult/(Manhours/12),0)"%(rc_col,hr+1+i),F["td"],0)
+        scol["trir_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
+        ws.write(hr-1,c0,"ltifr_m",F["th"])
+        for i in range(12):
+            ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*LTIFRmult/(Manhours/12),0)"%(lf_col,hr+1+i),F["td"],0)
+        scol["ltifr_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
+        self.MSER=scol   # expose monthly-series ranges for direct trend-chart reuse
 
         MH="Manhours"; nmc="SUM(%s)"%curmask; nmp="SUM(%s)"%prmask
         def sp(series_name,mask): return "SUMPRODUCT(%s,%s)"%(scol[series_name],mask)
         # ---- Exec KPI variance table ----
-        kt=r0+2; kc=31   # far-right column block for the KPI table (AF..)
+        kt=r0+2; kc=c0+2   # dynamic: placed just past the last monthly-series column
         ws.write(kt-1,kc,"Executive KPI (period variance)",F["bodyb"])
         heads=["KPI","Band","Cur","Prior","Delta%","Good"]
         for j,h in enumerate(heads): ws.write(kt,kc+j,h,F["th"])
         # (label, band, kind, polarity, kind_of_calc, args)
         KP=[
-         ("TRIR","Lagging","dec",-1,"trir",None),
-         ("LTIFR","Lagging","dec",-1,"ltifr",None),
-         ("Total Incidents","Lagging","num",-1,"sum","totalinc"),
-         ("Recordable","Lagging","num",-1,"sum","recordable"),
-         ("LTI + Fatality","Lagging","num",-1,"sum","ltifat"),
-         ("Near Miss","Lagging","num",-1,"sum","nearmiss"),
-         ("First Aid","Lagging","num",-1,"sum","firstaid"),
-         ("Lost Days","Lagging","num",-1,"sum","lostdays"),
-         ("Disciplinary","Lagging","num",-1,"sum","disc"),
-         ("Open NCs","Lagging","num",-1,"sum","nc_open"),
-         ("Trainings","Leading","num",1,"sum","training_total"),
-         ("Training Compliance","Leading","pct",1,"ratio",("train_completed","training_total")),
-         ("HSE Observations","Leading","num",1,"sum","obs_total"),
-         ("Obs Closure","Leading","pct",1,"ratio",("obs_closed","obs_total")),
-         ("Toolbox Talks","Leading","num",1,"sum","toolbox"),
-         ("Inspections","Leading","num",1,"sum","inspections"),
-         ("Audits","Leading","num",1,"sum","audits"),
-         ("PTW Compliance","Leading","pct",1,"ratio",("ptw_compliant","ptw_total")),
-         ("Emergency Drills","Leading","num",1,"sum","drills"),
-         ("CA Closure","Leading","pct",1,"ratio",("ca_closed","ca_total")),
+         # ---- LAGGING (reactive outcomes; lower is better) ----
+         ("TRIR","Lagging","dec",-1,"trir",None,None),
+         ("LTIFR","Lagging","dec",-1,"ltifr",None,None),
+         ("Total Incidents","Lagging","num",-1,"sum","totalinc","Incident"),
+         ("Recordable","Lagging","num",-1,"sum","recordable","Incident"),
+         ("LTI + Fatality","Lagging","num",-1,"sum","ltifat","Incident"),
+         ("Near Miss","Lagging","num",-1,"sum","nearmiss","Incident"),
+         ("First Aid","Lagging","num",-1,"sum","firstaid","Incident"),
+         ("Lost Days","Lagging","num",-1,"sum","lostdays","Incident"),
+         ("Disciplinary","Lagging","num",-1,"sum","disc","Disciplinary Actions"),
+         ("Open NCs","Lagging","num",-1,"sum","nc_open","NC Management"),
+         ("NC Closure","Lagging","pct",1,"ratio",("nc_closed","nc_total"),"NC Management"),
+         ("Alcohol Positive %","Lagging","pct",-1,"ratio",("alcohol_positive","alcohol_total"),"Alcohol Tests"),
+         # ---- LEADING (proactive activity; higher is better) ----
+         ("Toolbox Talks","Leading","num",1,"sum","toolbox","Toolbox Talks"),
+         ("Toolbox Avg Attendance","Leading","pct",1,"ratio",("toolbox_att_actual","toolbox_att_target"),"Toolbox Talks"),
+         ("JSA Assessments","Leading","num",1,"sum","jsa","JSA Risk Assessment"),
+         ("JSA % Approved","Leading","pct",1,"ratio",("jsa_approved","jsa"),"JSA Risk Assessment"),
+         ("Trainings","Leading","num",1,"sum","training_total","Training"),
+         ("Training Compliance","Leading","pct",1,"ratio",("train_completed","training_total"),"Training"),
+         ("HSE Observations","Leading","num",1,"sum","obs_total","HSE Observations"),
+         ("Obs Closure","Leading","pct",1,"ratio",("obs_closed","obs_total"),"HSE Observations"),
+         ("Workplace Inspections","Leading","num",1,"sum","wpinsp_total","Workplace Inspections"),
+         ("Workplace Insp. Closure","Leading","pct",1,"ratio",("wpinsp_closed","wpinsp_total"),"Workplace Inspections"),
+         ("Equipment Inspections","Leading","num",1,"sum","eqinsp_total","Equipment Inspections"),
+         ("Equipment Critical Findings","Leading","num",-1,"sum","eqinsp_critical","Equipment Inspections"),
+         ("Safety Walkthroughs","Leading","num",1,"sum","walk_total","Safety Walkthroughs"),
+         ("Safety Meetings","Leading","num",1,"sum","meetings","Safety Meetings"),
+         ("Meetings Close-out","Leading","pct",1,"ratio",("meetings_closed","meetings_raised"),"Safety Meetings"),
+         ("Safety Bulletins","Leading","num",1,"sum","bulletins_total","Safety Bulletins"),
+         ("Bulletin Reach","Leading","pct",1,"ratio",("bulletins_actual","bulletins_target"),"Safety Bulletins"),
+         ("Emergency Drills","Leading","num",1,"sum","drills","Emergency Drills"),
+         ("Drill Participation","Leading","pct",1,"ratio",("drills_actual","drills_target"),"Emergency Drills"),
+         ("Internal Audits","Leading","num",1,"sum","iaudit_total","Internal Audits"),
+         ("Internal Audit NCs","Leading","num",-1,"sum","iaudit_nc","Internal Audits"),
+         ("External Audits","Leading","num",1,"sum","eaudit_total","External Audits"),
+         ("External Audit NCs","Leading","num",-1,"sum","eaudit_nc","External Audits"),
+         ("Management Visits","Leading","num",1,"sum","mgmtvisit_total","Management Visits"),
+         ("Mgmt Visit Close-out","Leading","pct",1,"ratio",("mgmtvisit_closed","mgmtvisit_raised"),"Management Visits"),
+         ("Management Reviews","Leading","num",1,"sum","mgmtreview_total","Management Reviews"),
+         ("Mgmt Review Attendance","Leading","pct",1,"ratio",("mgmtreview_attended","mgmtreview_invited"),"Management Reviews"),
+         ("Safety Awards","Leading","num",1,"sum","awards_total","Safety Awards"),
+         ("Stop Work Authority","Leading","num",1,"sum","swa_total","Stop Work Authority"),
+         ("Alcohol Tests","Leading","num",1,"sum","alcohol_total","Alcohol Tests"),
+         ("PTW Audits","Leading","num",1,"sum","ptw_total","PTW Audits"),
+         ("PTW Compliance","Leading","pct",1,"ratio",("ptw_compliant","ptw_total"),"PTW Audits"),
+         ("Corrective Actions","Leading","num",1,"sum","ca_total","Corrective Actions"),
+         ("CA Closure","Leading","pct",1,"ratio",("ca_closed","ca_total"),"Corrective Actions"),
+         ("Unsafe Acts Reported","Leading","num",1,"sum","unsafeact_total","Unsafe Acts"),
+         ("Unsafe Act Closure","Leading","pct",1,"ratio",("unsafeact_closed","unsafeact_total"),"Unsafe Acts"),
+         ("Unsafe Conditions Reported","Leading","num",1,"sum","unsafecond_total","Unsafe Conditions"),
+         ("Unsafe Condition Closure","Leading","pct",1,"ratio",("unsafecond_closed","unsafecond_total"),"Unsafe Conditions"),
         ]
         def calc(kind,args,mask,nm):
             if kind=="sum": return sp(args,mask)
@@ -545,7 +648,7 @@ class EHS:
                "Near Miss":"NearMiss","Lost Days":"LostDays","LTI + Fatality":"LTIfat",
                "Training Compliance":"TrainCompliance","Obs Closure":"ObsClosure","CA Closure":"CAClosure",
                "PTW Compliance":"PTWauditComp"}
-        for i,(lbl,band,kind,pol,ck,args) in enumerate(KP):
+        for i,(lbl,band,kind,pol,ck,args,drill) in enumerate(KP):
             rr=kt+1+i
             ws.write(rr,kc,lbl,F["tdl"]); ws.write(rr,kc+1,band,F["td"])
             nf=F["td"] if kind=="dec" else (F["tdp"] if kind=="pct" else F["tdn"])
@@ -559,13 +662,15 @@ class EHS:
             self.wb.define_name(gname,"="+goodcell)
             EX[lbl]={"cur":"Calculations!%s"%cur,"prior":"Calculations!%s"%pri,
                      "delta":"Calculations!$%s$%d"%(xl_col_to_name(kc+4),rr+1),
-                     "good":goodcell,"goodname":gname,"band":band,"kind":kind}
+                     "good":goodcell,"goodname":gname,"band":band,"kind":kind,"drill":drill}
             if lbl in names: self.wb.define_name(names[lbl],"=Calculations!%s"%cur)
         self.EX=EX
         # ---- gauge helper cells (value/2, remainder, hidden 50) ----
         gauges=[("Training",EX["Training Compliance"]["cur"]),("PTW Audit",EX["PTW Compliance"]["cur"]),
-                ("Obs Closure",EX["Obs Closure"]["cur"]),("CA Closure",EX["CA Closure"]["cur"])]
-        g0=kt+22
+                ("Obs Closure",EX["Obs Closure"]["cur"]),("CA Closure",EX["CA Closure"]["cur"]),
+                ("Inspection",EX["Workplace Insp. Closure"]["cur"]),
+                ("Statutory",EX["NC Closure"]["cur"])]
+        g0=kt+1+len(KP)+3   # dynamic: sit just below the (now much longer) KPI table
         ws.write(g0-1,kc,"Gauge helpers",F["bodyb"])
         self.GAUGE={}
         for i,(nm,cur) in enumerate(gauges):
@@ -613,11 +718,13 @@ class EHS:
             ws.write(tr_r+i,tc,mn,F["td"])
             ws.write_formula(tr_r+i,tc+1,'=COUNTIFS(%s,"%s",%s,dCrit)'%(IM,mn,ID),F["tdn"],0)
         self.RR["_inctrend"]={"lbl":self._a1(tr_r,tc,tr_r+11),"val":self._a1(tr_r,tc+1,tr_r+11)}
-        # RAG scorecard
+        # RAG scorecard (6 metrics, matching the 6 gauges)
         rg=gr+len(lag)+2; rc=pc
         ws.write(rg-1,rc,"RAG",F["th"]); ws.write(rg-1,rc+1,"Act",F["th"]); ws.write(rg-1,rc+2,"Tgt",F["th"]); ws.write(rg-1,rc+3,"Status",F["th"])
         rag=[("TRIR","TRIR","TgtTRIR",True),("Obs Closure","ObsClosure","TgtObs",False),
-             ("Training","TrainCompliance","TgtTrain",False),("CA Closure","CAClosure","TgtCA",False)]
+             ("Training","TrainCompliance","TgtTrain",False),("CA Closure","CAClosure","TgtCA",False),
+             ("Workplace Insp. Closure",EX["Workplace Insp. Closure"]["cur"],"TgtObs",False),
+             ("PTW Compliance","PTWauditComp","TgtObs",False)]
         for i,(l,act,tgt,low) in enumerate(rag):
             rr=rg+i; ws.write(rr,rc,l,F["tdl"])
             if low:
@@ -626,7 +733,139 @@ class EHS:
             else:
                 ws.write_formula(rr,rc+1,"=%s/100"%act,F["td"],0); ws.write_formula(rr,rc+2,"="+tgt,F["td"],0)
                 ws.write_formula(rr,rc+3,'=IF(%s/100>=%s,"🟢 GREEN",IF(%s/100>=%s*AmberBand,"🟡 AMBER","🔴 RED"))'%(act,tgt,act,tgt),F["tdl"],0)
-        self.RR["_rag"]={"first":rg,"last":rg+3,"c":rc}
+        self.RR["_rag"]={"first":rg,"last":rg+len(rag)-1,"c":rc}
+
+        # ---- next free row for chained calc blocks (max of all sub-block bottoms) ----
+        bottom = max(g0+6, kt+1+len(KP), rg+len(rag))
+        return bottom + 3
+
+    def _exec_analytics(self, ws, r0):
+        """Cross-tracker analytics (Register-Month + Department filtered, via mCrit/dCrit):
+        Root-Cause Pareto, Department Safety Score, Risk Heat Map, Top-10 Unsafe Acts/
+        Conditions/Areas, and a compliance Radar (period-based, reusing EX cur cells).
+        Returns the next free row."""
+        F=self.F; EX=self.EX
+        inc=spec_of("incident")
+        c0=1
+        ws.merge_range(r0,c0,r0,c0+9,"CROSS-TRACKER ANALYTICS  (filtered by Register Month & Department)",F["bodyb"])
+        r=r0+2
+
+        # ---- Root Cause Pareto (Incident, 8 causes) ----
+        RC=rng(inc,"Root Cause")
+        causes=HD.ROOT_CAUSES
+        p0=r
+        ws.write(p0-1,c0,"Root Cause",F["th"]); ws.write(p0-1,c0+1,"Count",F["th"])
+        ws.write(p0-1,c0+2,"Adj",F["th"]); ws.write(p0-1,c0+3,"Sorted Cause",F["th"])
+        ws.write(p0-1,c0+4,"Sorted Count",F["th"]); ws.write(p0-1,c0+5,"Cumulative %",F["th"])
+        for i,c in enumerate(causes):
+            rr=p0+i
+            ws.write(rr,c0,c,F["tdl"])
+            ws.write_formula(rr,c0+1,'=COUNTIFS(%s,"%s",%s,mCrit,%s,dCrit)'%(RC,c,rng(inc,"Month"),rng(inc,"Department")),F["tdn"],0)
+            ws.write_formula(rr,c0+2,"=%s+ROW()/100000"%xl_rowcol_to_cell(rr,c0+1),self._numfmt("0.00000"),0)
+        af=xl_rowcol_to_cell(p0,c0+2,True,True); al=xl_rowcol_to_cell(p0+len(causes)-1,c0+2,True,True)
+        nf_=xl_rowcol_to_cell(p0,c0,True,True); nl=xl_rowcol_to_cell(p0+len(causes)-1,c0,True,True)
+        cf=xl_rowcol_to_cell(p0,c0+1,True,True); cl_=xl_rowcol_to_cell(p0+len(causes)-1,c0+1,True,True)
+        for i in range(len(causes)):
+            rr=p0+i; k=i+1
+            large="LARGE(%s:%s,%d)"%(af,al,k)
+            ws.write_formula(rr,c0+3,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(nf_,nl,large,af,al),F["tdl"],0)
+            ws.write_formula(rr,c0+4,"=INT(%s)"%large,F["tdn"],0)
+            sc_first=xl_rowcol_to_cell(p0,c0+4,True,True); sc_this=xl_rowcol_to_cell(rr,c0+4,True,False)
+            ws.write_formula(rr,c0+5,"=IFERROR(SUM(%s:%s)/SUM(%s:%s)*100,0)"%(sc_first,sc_this,cf,cl_),self._numfmt('0.0"%"'),0)
+        sc=xl_col_to_name(c0+3); vc=xl_col_to_name(c0+4); pc_=xl_col_to_name(c0+5)
+        self.RR["_pareto_lbl"]="Calculations!$%s$%d:$%s$%d"%(sc,p0+1,sc,p0+len(causes))
+        self.RR["_pareto_val"]="Calculations!$%s$%d:$%s$%d"%(vc,p0+1,vc,p0+len(causes))
+        self.RR["_pareto_cum"]="Calculations!$%s$%d:$%s$%d"%(pc_,p0+1,pc_,p0+len(causes))
+        r=p0+len(causes)+2
+
+        # ---- Department Safety Score ----
+        d0=r; depts=HD.DEPARTMENTS
+        ws.write(d0-1,c0,"Department",F["th"]); ws.write(d0-1,c0+1,"Score",F["th"])
+        ws.write(d0-1,c0+2,"Recordable",F["th"]); ws.write(d0-1,c0+3,"Near Miss",F["th"])
+        IClsD=rng(inc,"Classification"); IMD=rng(inc,"Month"); IDD=rng(inc,"Department")
+        nm_sp=spec_of("nearmiss") if False else None
+        for i,d in enumerate(depts):
+            rr=d0+i
+            ws.write(rr,c0,d,F["tdl"])
+            recd=('COUNTIFS(%s,"Lost Time Injury",%s,mCrit,%s,"%s")+COUNTIFS(%s,"Medical Treatment",%s,mCrit,%s,"%s")'
+                  '+COUNTIFS(%s,"Restricted Work",%s,mCrit,%s,"%s")+COUNTIFS(%s,"Fatality",%s,mCrit,%s,"%s")')%(
+                IClsD,IMD,IDD,d,IClsD,IMD,IDD,d,IClsD,IMD,IDD,d,IClsD,IMD,IDD,d)
+            uad=rng(spec_of("unsafeact"),"Department"); uam=rng(spec_of("unsafeact"),"Month")
+            ucd=rng(spec_of("unsafecond"),"Department"); ucm=rng(spec_of("unsafecond"),"Month")
+            nmd='COUNTIFS(%s,mCrit,%s,"%s")+COUNTIFS(%s,mCrit,%s,"%s")'%(uam,uad,d,ucm,ucd,d)
+            ws.write_formula(rr,c0+2,"="+recd,F["tdn"],0)
+            ws.write_formula(rr,c0+3,"="+nmd,F["tdn"],0)
+            ws.write_formula(rr,c0+1,"=MAX(45,MIN(100,ROUND(100-%s*8-%s*1.5,0)))"%(
+                xl_rowcol_to_cell(rr,c0+2),xl_rowcol_to_cell(rr,c0+3)),F["tdn"],0)
+        dc=xl_col_to_name(c0); ssc=xl_col_to_name(c0+1)
+        self.RR["_dept_lbl"]="Calculations!$%s$%d:$%s$%d"%(dc,d0+1,dc,d0+len(depts))
+        self.RR["_dept_val"]="Calculations!$%s$%d:$%s$%d"%(ssc,d0+1,ssc,d0+len(depts))
+        r=d0+len(depts)+2
+
+        # ---- Risk Heat Map (Risk Rating x Department, Incident register) ----
+        h0=r
+        ws.write(h0-1,c0,"L \\ Dept",F["th"])
+        topdepts=depts[:6]
+        for j,d in enumerate(topdepts): ws.write(h0-1,c0+1+j,d[:8],F["th"])
+        levels=["Critical","High","Medium","Low"]
+        IR=rng(inc,"Risk Rating")
+        for i,lvl in enumerate(levels):
+            rr=h0+i
+            ws.write(rr,c0,lvl,F["th"])
+            for j,d in enumerate(topdepts):
+                ws.write_formula(rr,c0+1+j,'=COUNTIFS(%s,"%s",%s,mCrit,%s,"%s")'%(IR,lvl,IMD,IDD,d),F["heat"],0)
+        first=xl_rowcol_to_cell(h0,c0+1); last=xl_rowcol_to_cell(h0+3,c0+len(topdepts))
+        ws.conditional_format("%s:%s"%(first,last),{"type":"3_color_scale",
+            "min_color":GREEN_L,"mid_color":"#FEF08A","max_color":RED})
+        self.RR["_heat_range"]="Calculations!%s:%s"%(first,last)
+        r=h0+5
+
+        # ---- Top-10 Unsafe Acts / Unsafe Conditions / High-Risk Areas ----
+        r=self._top10_block(ws,r,c0,"Unsafe Act",spec_of("unsafeact"),"Description",HD.UNSAFE_ACT_TYPES,"_topact")
+        r=self._top10_block(ws,r,c0,"Unsafe Condition",spec_of("unsafecond"),"Description",HD.UNSAFE_COND_TYPES,"_topcond")
+        r=self._top10_block(ws,r,c0,"High-Risk Area",inc,"Area",HD.LOCATIONS,"_toparea")
+
+        # ---- Compliance Radar (period-based; reuses EX cur cells from _exec_engine) ----
+        rd0=r
+        ws.write(rd0-1,c0,"Radar Metric",F["th"]); ws.write(rd0-1,c0+1,"Value",F["th"])
+        radar=[("Training",EX["Training Compliance"]["cur"]),("PTW Audit",EX["PTW Compliance"]["cur"]),
+               ("HSE Observations",EX["Obs Closure"]["cur"]),("Workplace Insp.",EX["Workplace Insp. Closure"]["cur"]),
+               ("Corrective Actions",EX["CA Closure"]["cur"]),("NC Mgmt",EX["NC Closure"]["cur"])]
+        for i,(lbl,cellref) in enumerate(radar):
+            ws.write(rd0+i,c0,lbl,F["tdl"]); ws.write_formula(rd0+i,c0+1,"="+cellref,F["tdp"],0)
+        rl=xl_col_to_name(c0); rv=xl_col_to_name(c0+1)
+        self.RR["_radar_lbl"]="Calculations!$%s$%d:$%s$%d"%(rl,rd0+1,rl,rd0+len(radar))
+        self.RR["_radar_val"]="Calculations!$%s$%d:$%s$%d"%(rv,rd0+1,rv,rd0+len(radar))
+        r=rd0+len(radar)+2
+        return r
+
+    def _top10_block(self, ws, r0, c0, title, spec, field, pool, tag):
+        F=self.F
+        items=pool[:10]
+        ws.write(r0-1,c0,"Top 10 "+title,F["th"]); ws.write(r0-1,c0+1,"Count",F["th"])
+        ws.write(r0-1,c0+2,"Adj",F["th"]); ws.write(r0-1,c0+3,"Rank Item",F["th"]); ws.write(r0-1,c0+4,"Rank Count",F["th"])
+        fr=rng(spec,field); mr_=rng(spec,"Month")
+        dep_suf=(",%s,dCrit"%rng(spec,"Department")) if has(spec,"Department") else ""
+        for i,it in enumerate(items):
+            rr=r0+i
+            ws.write(rr,c0,it,F["tdl"])
+            ws.write_formula(rr,c0+1,'=COUNTIFS(%s,"%s",%s,mCrit%s)'%(fr,it,mr_,dep_suf),F["tdn"],0)
+            ws.write_formula(rr,c0+2,"=%s+ROW()/100000"%xl_rowcol_to_cell(rr,c0+1),self._numfmt("0.00000"),0)
+        af=xl_rowcol_to_cell(r0,c0+2,True,True); al=xl_rowcol_to_cell(r0+len(items)-1,c0+2,True,True)
+        nf_=xl_rowcol_to_cell(r0,c0,True,True); nl=xl_rowcol_to_cell(r0+len(items)-1,c0,True,True)
+        for i in range(len(items)):
+            rr=r0+i; k=i+1
+            large="LARGE(%s:%s,%d)"%(af,al,k)
+            ws.write_formula(rr,c0+3,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(nf_,nl,large,af,al),F["tdl"],0)
+            ws.write_formula(rr,c0+4,"=INT(%s)"%large,F["tdn"],0)
+        lc=xl_col_to_name(c0+3); vc=xl_col_to_name(c0+4)
+        self.RR[tag+"_lbl"]="Calculations!$%s$%d:$%s$%d"%(lc,r0+1,lc,r0+len(items))
+        self.RR[tag+"_val"]="Calculations!$%s$%d:$%s$%d"%(vc,r0+1,vc,r0+len(items))
+        return r0+len(items)+2
+
+    def _numfmt(self, nf):
+        return self.wb.add_format({"font_name":"Segoe UI","font_size":9,"align":"center",
+            "valign":"vcenter","border":1,"border_color":"#D8E1EB","num_format":nf})
 
     def _register_calc(self, ws, spec, sr):
         """Monthly volume + category + status + KPI scalars for one register."""
@@ -652,18 +891,28 @@ class EHS:
                 ws.write(sr+1+i,4,v,F["tdl"])
                 ws.write_formula(sr+1+i,5,'=COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,cat),v,Mn,dsuf()),F["tdn"],0)
             out["cat_lbl"]=self._a1(sr+1,4,sr+len(vals)); out["cat_val"]=self._a1(sr+1,5,sr+len(vals))
-        # status breakdown (col H/I)
+        # secondary distribution (col G/H) - Mode/Frequency/Result/Verdict-style
+        cat2=spec.get("cat2")
+        if cat2 and cat2 in headers:
+            vals2=HD.POOLS.get(cat2) or self._distinct(spec,cat2)
+            vals2=vals2[:8]
+            ws.write(sr,6,cat2,F["th"]); ws.write(sr,7,"Count",F["th"])
+            for i,v in enumerate(vals2):
+                ws.write(sr+1+i,6,v,F["tdl"])
+                ws.write_formula(sr+1+i,7,'=COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,cat2),v,Mn,dsuf()),F["tdn"],0)
+            out["cat2_lbl"]=self._a1(sr+1,6,sr+len(vals2)); out["cat2_val"]=self._a1(sr+1,7,sr+len(vals2))
+        # status breakdown (col J/K)
         st=spec.get("status")
         if st and st in headers:
             svals=HD.POOLS.get(st) or self._distinct(spec,st)
             svals=svals[:6]
-            ws.write(sr,7,st,F["th"]); ws.write(sr,8,"Count",F["th"])
+            ws.write(sr,9,st,F["th"]); ws.write(sr,10,"Count",F["th"])
             for i,v in enumerate(svals):
-                ws.write(sr+1+i,7,v,F["tdl"])
-                ws.write_formula(sr+1+i,8,'=COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf()),F["tdn"],0)
-            out["st_lbl"]=self._a1(sr+1,7,sr+len(svals)); out["st_val"]=self._a1(sr+1,8,sr+len(svals))
-        # KPI scalars (col K label, L value)
-        kc=10
+                ws.write(sr+1+i,9,v,F["tdl"])
+                ws.write_formula(sr+1+i,10,'=COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf()),F["tdn"],0)
+            out["st_lbl"]=self._a1(sr+1,9,sr+len(svals)); out["st_val"]=self._a1(sr+1,10,sr+len(svals))
+        # KPI scalars (col M/N) - up to 8 tiles
+        kc=12
         kpis=self._kpi_defs(spec)
         ws.write(sr,kc,"KPI",F["th"]); ws.write(sr,kc+1,"Value",F["th"])
         out["kpi"]=[]
@@ -672,9 +921,87 @@ class EHS:
             nf={"num":F["tdn"],"pct":F["tdp"]}[kind]
             ws.write_formula(sr+1+i,kc+1,"="+formula,nf,0)
             out["kpi"].append((lbl,"Calculations!$%s$%d"%(xl_col_to_name(kc+1),sr+2+i),kind))
+        # ---- Department Performance table (col P onward) ----
+        if dep:
+            dc0=15
+            depts=HD.DEPARTMENTS
+            ws.write(sr,dc0,"Department",F["th"]); ws.write(sr,dc0+1,"Count",F["th"])
+            met1,met2 = self._dept_table_metrics(spec)
+            ws.write(sr,dc0+2,met1[0],F["th"]); ws.write(sr,dc0+3,met2[0],F["th"])
+            for i,d in enumerate(depts):
+                rr=sr+1+i
+                ws.write(rr,dc0,d,F["tdl"])
+                ws.write_formula(rr,dc0+1,'=COUNTIFS(%s,mCrit,%s,"%s")'%(Mn,Dp,d),F["tdn"],0)
+                ws.write_formula(rr,dc0+2,"="+met1[1](d),F["tdn"] if met1[2]=="num" else F["tdp"],0)
+                ws.write_formula(rr,dc0+3,"="+met2[1](d),F["tdn"] if met2[2]=="num" else F["tdp"],0)
+            out["dept_lbl"]=self._a1(sr+1,dc0,sr+len(depts))
+            out["dept_val"]=self._a1(sr+1,dc0+1,sr+len(depts))
+        # ---- Monthly Performance Matrix (col U onward: measure rows x Jan..Dec + YTD) ----
+        mc0=20
+        measures=self._matrix_measures(spec)
+        ws.write(sr,mc0,"Metric",F["th"])
+        for j,mn in enumerate(MONTHS): ws.write(sr,mc0+1+j,mn,F["th"])
+        ws.write(sr,mc0+13,"YTD",F["th"])
+        for i,(lbl,fmonth,kind,agg) in enumerate(measures):
+            rr=sr+1+i
+            ws.write(rr,mc0,lbl,F["tdl"])
+            for j,mn in enumerate(MONTHS):
+                ws.write_formula(rr,mc0+1+j,"="+fmonth(mn),F["tdn"] if kind=="num" else F["tdp"],0)
+            first=xl_rowcol_to_cell(rr,mc0+1); last=xl_rowcol_to_cell(rr,mc0+12)
+            if agg=="sum":
+                ws.write_formula(rr,mc0+13,"=SUM(%s:%s)"%(first,last),F["tdn"],0)
+            elif agg=="avg":
+                ws.write_formula(rr,mc0+13,"=IFERROR(AVERAGE(%s:%s),0)"%(first,last),F["tdp"] if kind=="pct" else F["tdn"],0)
+        out["matrix_top"]=sr
         return out
 
+    def _dept_table_metrics(self, spec):
+        """Two department-level metric column defs: (label, fn(dept)->formula, kind)."""
+        Mn=rng(spec,"Month"); Dp=rng(spec,"Department")
+        st=spec.get("status")
+        if st and st in spec["headers"]:
+            svals=HD.POOLS.get(st,HD.STATUS)
+            closed=[v for v in svals if v in CLOSED_VALUES] or [svals[0]]
+            def closedpct(d):
+                cf="+".join('COUNTIFS(%s,"%s",%s,mCrit,%s,"%s")'%(rng(spec,st),v,Mn,Dp,d) for v in closed)
+                tot='COUNTIFS(%s,mCrit,%s,"%s")'%(Mn,Dp,d)
+                return "IFERROR((%s)/%s*100,0)"%(cf,tot)
+            met1=("Closed %",closedpct,"pct")
+        else:
+            met1=("Records",lambda d:'COUNTIFS(%s,mCrit,%s,"%s")'%(Mn,Dp,d),"num")
+        auto=spec.get("auto",{})
+        if auto:
+            pcol=list(auto)[0]
+            met2=("Avg "+pcol,lambda d:'IFERROR(AVERAGEIFS(%s,%s,mCrit,%s,"%s"),0)'%(rng(spec,pcol),Mn,Dp,d),"pct")
+        else:
+            met2=("Records",lambda d:'COUNTIFS(%s,mCrit,%s,"%s")'%(Mn,Dp,d),"num")
+        return met1,met2
+
+    def _matrix_measures(self, spec):
+        """Monthly-performance-matrix rows: list of (label, fn(month)->formula, kind, agg)."""
+        Mn=rng(spec,"Month"); dep=has(spec,"Department")
+        Dp=rng(spec,"Department") if dep else None
+        dsuf=lambda: (",%s,dCrit"%Dp) if dep else ""
+        def cnt(mn): return 'COUNTIFS(%s,"%s"%s)'%(Mn,mn,dsuf())
+        rows=[("Records", cnt, "num","sum")]
+        st=spec.get("status")
+        if st and st in spec["headers"]:
+            svals=HD.POOLS.get(st,HD.STATUS)
+            closed=[v for v in svals if v in CLOSED_VALUES] or [svals[0]]
+            def compl(mn):
+                cf="+".join('COUNTIFS(%s,"%s",%s,"%s"%s)'%(rng(spec,st),v,Mn,mn,dsuf()) for v in closed)
+                return "IFERROR((%s)/COUNTIFS(%s,\"%s\"%s)*100,0)"%(cf,Mn,mn,dsuf())
+            rows.append(("Closed/Completed %", compl, "pct","avg"))
+        auto=spec.get("auto",{})
+        if auto:
+            pcol=list(auto)[0]
+            rows.append(("Avg "+pcol, lambda mn:'IFERROR(AVERAGEIFS(%s,%s,"%s"%s),0)'%(rng(spec,pcol),Mn,mn,dsuf()), "pct","avg"))
+        if has(spec,"Lost Days"):
+            rows.append(("Lost Days", lambda mn:'SUMIFS(%s,%s,"%s"%s)'%(rng(spec,"Lost Days"),Mn,mn,dsuf()), "num","sum"))
+        return rows[:6]
+
     def _kpi_defs(self, spec):
+        """Row 1 (volume/status, up to 4) + Row 2 (tracker-specific metrics, up to 4) = 8 tiles."""
         headers=spec["headers"]; Mn=rng(spec,"Month")
         dep=has(spec,"Department"); Dp=rng(spec,"Department") if dep else None
         dsuf=(",%s,dCrit"%Dp) if dep else ""
@@ -685,24 +1012,78 @@ class EHS:
             svals=HD.POOLS.get(st,HD.STATUS)
             closed=[v for v in svals if v in CLOSED_VALUES] or [svals[0]]
             cf="+".join('COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf) for v in closed)
-            kpis.append(("Closed / Completed %","IFERROR((%s)/%s*100,0)"%(cf,total),"pct"))
+            kpis.append(("Closed / Completed","IFERROR((%s)/%s*100,0)"%(cf,total),"pct"))
             op=[v for v in svals if v in OPEN_VALUES]
             if op:
                 of="+".join('COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf) for v in op)
                 kpis.append(("Open / Pending","%s"%of,"num"))
-        # metric
+                over=[v for v in svals if v=="Overdue"]
+                if over:
+                    ov="+".join('COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf) for v in over)
+                    kpis.append(("Overdue","%s"%ov,"num"))
+        kpis = kpis[:4]
+        # ---- row 2: tracker-specific metrics ----
+        def cnt(col,val): return 'COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,col),val,Mn,dsuf)
+        def ssum(col): return 'SUMIFS(%s,%s,mCrit%s)'%(rng(spec,col),Mn,dsuf)
+        def savg(col): return 'IFERROR(AVERAGEIFS(%s,%s,mCrit%s),0)'%(rng(spec,col),Mn,dsuf)
+        key=spec["key"]; row2=[]
         auto=spec.get("auto",{})
-        if auto:
-            pc=list(auto.keys())[0]
-            kpis.append(("Avg "+pc,"IFERROR(AVERAGEIFS(%s,%s,mCrit%s),0)"%(rng(spec,pc),Mn,dsuf),"pct"))
-        elif has(spec,"Non-Conformances"):
-            kpis.append(("Total Non-Conformances","SUMIFS(%s,%s,mCrit%s)"%(rng(spec,"Non-Conformances"),Mn,dsuf),"num"))
-        elif has(spec,"Minor NC") and has(spec,"Major NC"):
-            kpis.append(("Total NCs","SUMIFS(%s,%s,mCrit%s)+SUMIFS(%s,%s,mCrit%s)"%(
-                rng(spec,"Minor NC"),Mn,dsuf,rng(spec,"Major NC"),Mn,dsuf),"num"))
-        elif has(spec,"Lost Days"):
-            kpis.append(("Total Lost Days","SUMIFS(%s,%s,mCrit%s)"%(rng(spec,"Lost Days"),Mn,dsuf),"num"))
-        return kpis[:4]
+        if key=="toolbox":
+            row2=[("Avg "+list(auto)[0],savg(list(auto)[0]),"pct"),("Total Duration (min)",ssum("Duration (min)"),"num"),
+                  ("Action Required = Yes",cnt("Action Required","Yes"),"num")]
+        elif key=="jsa":
+            row2=[("Hazards Identified",ssum("Hazards Identified"),"num"),
+                  ("High/Critical Risk",cnt("Risk Level","High")+"+"+cnt("Risk Level","Critical"),"num")]
+        elif key=="training":
+            row2=[("Avg Attendance %",savg("Attendance %"),"pct"),("Total Duration (hrs)",ssum("Duration (hrs)"),"num"),
+                  ("Certificates Issued",cnt("Certificate Issued","Yes"),"num"),("Assessment Pass",cnt("Assessment Result","Pass"),"num")]
+        elif key=="hseobs":
+            row2=[("Critical/High Risk",cnt("Risk Level","Critical")+"+"+cnt("Risk Level","High"),"num")]
+        elif key in ("wpinsp","eqinsp","walk"):
+            row2=[("Non-Conformances",ssum("Non-Conformances"),"num"),("Critical Findings",ssum("Critical Findings"),"num"),
+                  ("Avg Checkpoints",savg("Checkpoints Inspected"),"num")]
+        elif key=="meetings":
+            row2=[("Avg Attendance %",savg("Attendance %"),"pct"),("Avg Close-out %",savg("Close-out %"),"pct"),
+                  ("Actions Raised",ssum("Action Items Raised"),"num")]
+        elif key=="bulletins":
+            row2=[("Avg Reach %",savg("Reach %"),"pct"),("Critical/High Priority",cnt("Priority","Critical")+"+"+cnt("Priority","High"),"num")]
+        elif key=="drills":
+            row2=[("Avg Participation %",savg("Participation %"),"pct"),("Avg Response (min)",savg("Actual Response (min)"),"num"),
+                  ("Excellent/Good Rating",cnt("Overall Rating","Excellent")+"+"+cnt("Overall Rating","Good"),"num")]
+        elif key in ("iaudit","eaudit"):
+            row2=[("Minor NC",ssum("Minor NC"),"num"),("Major NC",ssum("Major NC"),"num"),("Avg Checklist Items",savg("Checklist Items"),"num")]
+        elif key=="mgmtvisit":
+            row2=[("Avg Close-out %",savg("Close-out %"),"pct"),("Actions Raised",ssum("Actions Raised"),"num")]
+        elif key=="mgmtreview":
+            row2=[("Avg Attendance %",savg("Attendance %"),"pct"),("Decisions Made",ssum("Decisions Made"),"num"),
+                  ("Actions Assigned",ssum("Actions Assigned"),"num")]
+        elif key=="disc":
+            row2=[("3rd Offense",cnt("Offense Level","3rd Offense"),"num"),
+                  ("Suspension/Termination",cnt("Action Taken","Suspension")+"+"+cnt("Action Taken","Termination"),"num")]
+        elif key=="awards":
+            row2=[("Presented",cnt("Status","Presented"),"num")]
+        elif key=="swa":
+            row2=[("Avg Downtime (min)",savg("Downtime (min)"),"num"),
+                  ("Critical/High Severity",cnt("Severity","Critical")+"+"+cnt("Severity","High"),"num"),
+                  ("Investigated",cnt("Investigation Done","Yes"),"num")]
+        elif key=="alcohol":
+            row2=[("Positive Results",cnt("Result","Positive"),"num")]
+        elif key=="ptwaudit":
+            row2=[("Avg Compliance %",savg("Compliance %"),"pct"),("Deviations Found",ssum("Deviations Found"),"num")]
+        elif key=="ca":
+            row2=[("On-Time",cnt("Timeliness","On-Time"),"num"),
+                  ("Critical/High Priority",cnt("Priority","Critical")+"+"+cnt("Priority","High"),"num")]
+        elif key=="nc":
+            row2=[("Critical/High Severity",cnt("Severity","Critical")+"+"+cnt("Severity","High"),"num")]
+        elif key in ("unsafeact","unsafecond"):
+            row2=[("Critical/High Risk",cnt("Risk Level","Critical")+"+"+cnt("Risk Level","High"),"num")]
+        elif key=="incident":
+            row2=[("Total Lost Days",ssum("Lost Days"),"num"),
+                  ("Recordable",cnt("Classification","Lost Time Injury")+"+"+cnt("Classification","Medical Treatment")
+                   +"+"+cnt("Classification","Restricted Work")+"+"+cnt("Classification","Fatality"),"num")]
+        for lbl,formula,kind in row2[:4]:
+            kpis.append((lbl,formula,kind))
+        return kpis[:8]
 
     def _distinct(self, spec, header):
         idx=spec["headers"].index(header)
