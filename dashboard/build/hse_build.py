@@ -16,7 +16,7 @@ import vbabin, vba_code_hse
 
 DATA = HD.build_all()
 MONTHS = HD.MONTHS
-D0, DN = 4, 5003          # register data rows (header row 3)
+D0, DN = 4, 100003        # register data rows (header row 3) -> supports 100,000 records
 
 BLUE_D="#0F3D6E"; BLUE_M="#0B6EA8"; BLUE_L="#E8F1FA"; GREY_D="#334155"
 GREY_M="#64748B"; GREY_L="#F1F5F9"; GREEN="#15A34A"; GREEN_L="#DCFCE7"
@@ -77,6 +77,13 @@ class EHS:
             border=1,border_color="#E2E8F0")
         F["cell_l"]=self._fmt(font_name=seg,font_size=9,align="left",valign="vcenter",
             border=1,border_color="#E2E8F0")
+        # unlocked variants: genuine user-input cells, so sheet protection can lock formulas only
+        F["cell_in"]=self._fmt(font_name=seg,font_size=9,align="center",valign="vcenter",
+            border=1,border_color="#E2E8F0",locked=False,bg_color="#FBFDFF")
+        F["cell_in_l"]=self._fmt(font_name=seg,font_size=9,align="left",valign="vcenter",
+            border=1,border_color="#E2E8F0",locked=False,bg_color="#FBFDFF")
+        F["date_in"]=self._fmt(font_name=seg,font_size=9,align="center",valign="vcenter",
+            border=1,border_color="#E2E8F0",num_format="dd-mmm-yy",locked=False,bg_color="#FBFDFF")
         F["cell_calc"]=self._fmt(font_name=seg,font_size=9,align="center",valign="vcenter",
             border=1,border_color="#E2E8F0",bg_color=GREY_L,num_format='0.0"%"')
         F["cell_calcn"]=self._fmt(font_name=seg,font_size=9,align="center",valign="vcenter",
@@ -93,7 +100,7 @@ class EHS:
             valign="vcenter",num_format="dd-mmm-yyyy hh:mm")
         F["set_lbl"]=self._fmt(font_name=seg,font_size=10,font_color=INK,align="left",valign="vcenter")
         F["set_val"]=self._fmt(font_name=seg,font_size=10,bold=True,font_color=BLUE_D,align="center",
-            valign="vcenter",bg_color=AMBER_L,border=1,border_color="#E2C97A")
+            valign="vcenter",bg_color=AMBER_L,border=1,border_color="#E2C97A",locked=False)
         F["set_note"]=self._fmt(font_name=seg,font_size=9,italic=True,font_color=GREY_M,align="left",valign="vcenter")
         F["heat"]=self._fmt(font_name=seg,font_size=9,bold=True,align="center",valign="vcenter",
             border=1,border_color=WHITE,num_format="0")
@@ -157,22 +164,25 @@ class EHS:
             "Blue = user input   ·   Gray = auto-calculated   ·   use dropdowns where available", F["reg_legend"])
         rows=DATA[spec["key"]]
         auto=spec.get("auto",{})
-        date_idx={headers.index(h) for h in headers if "Date" in h or h=="Month"}
+        calc_cols = set(auto.keys())
+        if spec["key"]=="incident": calc_cols.add("Ageing (Days)")
+        if spec["key"]=="ca": calc_cols.add("Timeliness")
+        FORMULA_BUFFER = 1000   # auto-calc formulas are pre-filled this many rows for frictionless growth
         for r,row in enumerate(rows):
             er=D0-1+r   # 0-indexed excel row (D0=4 -> er=3 for first data row after header at row index 2)
             for c,val in enumerate(row):
                 h=headers[c]
-                if h in auto:
+                if h in calc_cols:
                     continue  # formula written below
-                if h=="Ageing (Days)" or (h=="Timeliness"):
-                    continue
                 if isinstance(val, datetime.date):
-                    ws.write_datetime(er,c, datetime.datetime(val.year,val.month,val.day), F["date"])
+                    ws.write_datetime(er,c, datetime.datetime(val.year,val.month,val.day), F["date_in"])
                 elif isinstance(val,(int,float)):
-                    ws.write_number(er,c,val, F["td" if False else "cell"])
+                    ws.write_number(er,c,val, F["cell_in"])
                 else:
-                    ws.write(er,c, val, F["cell_l"] if c in (4,5) else F["cell"])
-            # auto-calc percentage formulas
+                    ws.write(er,c, val, F["cell_in_l"] if c in (4,5) else F["cell_in"])
+        # pre-fill calculated-column formulas for the sample rows + a growth buffer (frictionless data entry)
+        for r in range(max(len(rows), FORMULA_BUFFER)):
+            er=D0-1+r
             for tgt,(num,den) in auto.items():
                 ci=headers.index(tgt)
                 if num=="__ptw__":
@@ -183,24 +193,27 @@ class EHS:
                     nn=xl_rowcol_to_cell(er, headers.index(num))
                     dd=xl_rowcol_to_cell(er, headers.index(den))
                     ws.write_formula(er,ci,"=IFERROR(%s/%s*100,0)"%(nn,dd), F["cell_calc"],0)
-            # incident ageing
             if spec["key"]=="incident":
                 ci=headers.index("Ageing (Days)")
                 dt=xl_rowcol_to_cell(er,headers.index("Date"))
                 cl=xl_rowcol_to_cell(er,headers.index("Closure Date"))
                 st=xl_rowcol_to_cell(er,headers.index("Status"))
-                ws.write_formula(er,ci,'=IF(%s="Closed",%s-%s,TODAY()-%s)'%(st,cl,dt,dt),F["cell_calcn"],0)
+                ws.write_formula(er,ci,'=IF(%s="","",IF(%s="Closed",%s-%s,TODAY()-%s))'%(dt,st,cl,dt,dt),F["cell_calcn"],0)
             if spec["key"]=="ca":
                 ci=headers.index("Timeliness")
                 cd=xl_rowcol_to_cell(er,headers.index("Completion Date"))
                 du=xl_rowcol_to_cell(er,headers.index("Due Date"))
                 st=xl_rowcol_to_cell(er,headers.index("Status"))
-                ws.write_formula(er,ci,'=IF(%s="Closed",IF(%s<=%s,"On-Time","Delayed"),"Pending")'%(st,cd,du),F["cell_l"],0)
-        last=D0-1+max(len(rows),1)
+                ws.write_formula(er,ci,'=IF(%s="","",IF(%s="Closed",IF(%s<=%s,"On-Time","Delayed"),"Pending"))'%(st,st,cd,du),F["cell_l"],0)
+        last=D0-1+max(len(rows), FORMULA_BUFFER)
         ws.add_table(2,0,last,nc-1, {"name":"t_"+spec["key"],"style":"Table Style Medium 9",
             "columns":[{"header":h} for h in headers]})
         for i,h in enumerate(headers):
-            ws.set_column(i,i, max(9,min(24,len(h)+2)))
+            if h in calc_cols:
+                colfmt = F["cell_l"] if (spec["key"]=="ca" and h=="Timeliness") else F["cell_calc"]
+            else:
+                colfmt = F["cell_in"]
+            ws.set_column(i,i, max(9,min(24,len(h)+2)), colfmt)
         ws.freeze_panes(3,0); ws.set_zoom(90)
         ws.write_url(0,nc+1,"internal:'Home'!A1", F["reg_legend"], "Home")
         # data validation dropdowns
@@ -253,8 +266,21 @@ class EHS:
                         ("Location","India"),("Reporting Year",HD.YEAR)]:
             ws.write(r,1,lbl,F["set_lbl"]); ws.write(r,2,val,F["set_val"]); r+=1
         r+=1; r=block(r,"EHS CALCULATION PARAMETERS")
-        params=[("Total Man-Hours Worked (annual)",1000000,"Avg employees × hours worked","Manhours"),
-                ("TRIR Multiplier",200000,"OSHA standard = 200,000","TRIRmult"),
+        ws.write(r,1,"Monthly Man-Hours Worked",F["bodyb"])
+        ws.write(r,3,"Edit per month for accuracy — TRIR/LTIFR use the exact hours for the selected period, not a flat average.",F["set_note"])
+        r+=1
+        mh_first=r+1
+        for i,mn in enumerate(MONTHS):
+            ws.write(r,1,mn,F["set_lbl"]); ws.write_number(r,2,1000000//12,F["set_val"]); r+=1
+        mh_last=r
+        self.wb.define_name("ManhoursM","=Settings!$C$%d:$C$%d"%(mh_first,mh_last))
+        ws.write(r,1,"Total Man-Hours (annual, auto-sum)",F["set_lbl"])
+        mh_fmt=self._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=BLUE_D,align="center",
+            valign="vcenter",bg_color=GREY_L,border=1,border_color="#D8E1EB",num_format="#,##0")
+        ws.write_formula(r,2,"=SUM(C%d:C%d)"%(mh_first,mh_last),mh_fmt,0)
+        self.wb.define_name("Manhours","=Settings!$C$%d"%(r+1)); r+=2
+        self._mh_first=mh_first   # Settings!$C$<row> of Jan man-hours; used by the period engine
+        params=[("TRIR Multiplier",200000,"OSHA standard = 200,000","TRIRmult"),
                 ("LTIFR Multiplier",1000000,"Per million man-hours","LTIFRmult")]
         for lbl,val,note,name in params:
             ws.write(r,1,lbl,F["set_lbl"]); ws.write_number(r,2,val,F["set_val"])
@@ -568,11 +594,11 @@ class EHS:
         rc_col=scol_col["recordable"]; lf_col=scol_col["ltifat"]
         ws.write(hr-1,c0,"trir_m",F["th"])
         for i in range(12):
-            ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*TRIRmult/(Manhours/12),0)"%(rc_col,hr+1+i),F["td"],0)
+            ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*TRIRmult/Settings!$C$%d,0)"%(rc_col,hr+1+i,self._mh_first+i),F["td"],0)
         scol["trir_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
         ws.write(hr-1,c0,"ltifr_m",F["th"])
         for i in range(12):
-            ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*LTIFRmult/(Manhours/12),0)"%(lf_col,hr+1+i),F["td"],0)
+            ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*LTIFRmult/Settings!$C$%d,0)"%(lf_col,hr+1+i,self._mh_first+i),F["td"],0)
         scol["ltifr_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
         self.MSER=scol   # expose monthly-series ranges for direct trend-chart reuse
 
@@ -641,8 +667,8 @@ class EHS:
         def calc(kind,args,mask,nm):
             if kind=="sum": return sp(args,mask)
             if kind=="ratio": return "IFERROR(%s/%s,0)*100"%(sp(args[0],mask),sp(args[1],mask))
-            if kind=="trir": return "IFERROR(%s*TRIRmult/(%s*Manhours/12),0)"%(sp("recordable",mask),nm)
-            if kind=="ltifr": return "IFERROR(%s*LTIFRmult/(%s*Manhours/12),0)"%(sp("ltifat",mask),nm)
+            if kind=="trir": return "IFERROR(%s*TRIRmult/SUMPRODUCT(ManhoursM,%s),0)"%(sp("recordable",mask),mask)
+            if kind=="ltifr": return "IFERROR(%s*LTIFRmult/SUMPRODUCT(ManhoursM,%s),0)"%(sp("ltifat",mask),mask)
         EX={}
         names={"TRIR":"TRIR","LTIFR":"LTIFR","Total Incidents":"TotalInc","Recordable":"Recordable",
                "Near Miss":"NearMiss","Lost Days":"LostDays","LTI + Fatality":"LTIfat",

@@ -10,6 +10,7 @@ def dash_name(spec): return "Dash · "+spec["sheet"]
 
 # --------------------------------------------------------------------------
 def build(e):
+    build_cover(e)
     build_home(e)
     build_exec(e)
     build_leadership(e)
@@ -80,6 +81,39 @@ def vtile(e, ws, r, c, label, ex, kind, accent, w=3, drillsheet=None):
 def place_chart(e, ws, r, c, ch, w=470, h=260):
     ch.set_size({"width":w,"height":h}); ws.insert_chart(r,c,ch)
 
+# ---- Cover Page (for the Board Pack PDF export) --------------------------
+def build_cover(e):
+    F=e.F; ws=e.wb.add_worksheet("Cover Page"); ws.set_tab_color(BLUE_D)
+    ws.hide_gridlines(2); ws.set_column("A:A",3); ws.set_column("B:M",10); ws.set_zoom(100)
+    big=e._fmt(font_name="Segoe UI",font_size=32,bold=True,font_color=WHITE,bg_color=BLUE_D,align="center",valign="vcenter")
+    sub=e._fmt(font_name="Segoe UI",font_size=13,font_color="#CFE0F0",bg_color=BLUE_D,align="center",valign="vcenter")
+    ws.set_row(2,10)
+    for r in range(0,16): ws.set_row(r,26)
+    ws.merge_range("B4:M9","",big); ws.write_url("B4","internal:'Home'!A1",big,"RCPL INTEGRATED EHS MANAGEMENT SYSTEM")
+    ws.merge_range("B10:M11","Executive Safety Board Pack  ·  Reliance Consumer Products Ltd  ·  Campa Cola CSD Plant",sub)
+    ws.merge_range("B12:M12","",F["accent"])
+    ws.write("F14","Prepared for:",F["refl"]); ws.write("H14","Plant Head / Leadership Team",F["bodyb"])
+    ws.write("F15","Report period:",F["refl"]); ws.write_formula("H15","=SelPeriod",F["bodyb"],0)
+    ws.write("F16","Generated:",F["refl"]); ws.write_formula("H16","=LastRefresh",F["refv"],0)
+    r=18
+    ws.merge_range(r,3,r,9,"HEADLINE SAFETY PERFORMANCE",F["section"]); r+=1
+    ex=e.EX
+    heads=[("TRIR",ex["TRIR"]["cur"],"dec"),("LTIFR",ex["LTIFR"]["cur"],"dec"),
+           ("Total Incidents",ex["Total Incidents"]["cur"],"num"),
+           ("Training Compliance",ex["Training Compliance"]["cur"],"pct")]
+    for i,(lbl,cell,kind) in enumerate(heads):
+        cc=3+i*3
+        strip,tt,vv,ss=e.cardfmt(["red","red","amber","green"][i],kind)
+        ws.merge_range(r,cc,r,cc+2,"",strip); ws.set_row(r,4)
+        ws.merge_range(r+1,cc,r+1,cc+2,lbl.upper(),tt)
+        ws.merge_range(r+2,cc,r+3,cc+2,"="+cell,vv)
+        ws.merge_range(r+4,cc,r+4,cc+2,"",ss)
+    r+=7
+    ws.merge_range(r,3,r+3,9,
+        "This board pack combines the Executive Dashboard and Leadership Review into a single "
+        "PDF via the ExportBoardPack macro (Home). Every figure is live at the moment of export.",
+        F["note"])
+
 # ---- Home ----------------------------------------------------------------
 def build_home(e):
     F=e.F; ws=e.wb.add_worksheet("Home"); ws.set_tab_color(BLUE_D)
@@ -101,6 +135,15 @@ def build_home(e):
         align="center",valign="vcenter",border=2,border_color=WHITE)
     ws.merge_range("B12:F13","",tilef); ws.write_url("B12","internal:'Executive Dashboard'!A1",tilef,"🏆  EXECUTIVE DASHBOARD")
     ws.merge_range("H12:M13","",tilef2); ws.write_url("H12","internal:'Leadership Review'!A1",tilef2,"🧭  LEADERSHIP REVIEW")
+    # advanced-analysis action buttons
+    btnrow=13
+    ws.set_row(btnrow,32)
+    ws.insert_button(btnrow,1,{"macro":"BuildPivotAnalysis","caption":"📊 Build Pivot Analysis (native PivotTables + Slicers)",
+        "width":270,"height":26,"x_offset":2,"y_offset":4})
+    ws.insert_button(btnrow,5,{"macro":"ExportBoardPack","caption":"📦 Export Board Pack PDF",
+        "width":180,"height":26,"x_offset":2,"y_offset":4})
+    ws.insert_button(btnrow,8,{"macro":"UnprotectAllSheets","caption":"🔓 Unlock Sheets to Edit",
+        "width":170,"height":26,"x_offset":2,"y_offset":4})
     # register + dashboard index (two columns: tracker name -> register | dashboard)
     ws.merge_range("B15:M15","TRACKER REGISTERS & DASHBOARDS  (click either link)",F["section"])
     lblf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=INK,bg_color=GREY_L,

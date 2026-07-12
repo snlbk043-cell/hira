@@ -32,6 +32,26 @@ and Help** sheets.
 | **Registers (24)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident |
 | **Engine & config** | `Calculations`, `Master Data`, `Settings`, `Help` |
 
+## Round 4: native pivot tables, sheet protection, real monthly man-hours, board pack
+- **Native PivotTables + Slicers** — a "📊 Build Pivot Analysis" button on Home runs a VBA
+  macro that creates three genuine, fully-interactive Excel PivotTables (Incident, Training,
+  Corrective Actions) with Slicers, built from the real Tables — not a formula substitute.
+  Re-runnable any time; rebuilds the sheet fresh.
+- **Sheet protection** — every formula/label cell is locked; only genuine input cells (each
+  register's data-entry columns, Settings' amber parameters, the Executive filter drop-downs)
+  stay editable. Applied via VBA with `UserInterfaceOnly:=True` so the macros themselves can
+  still write (refresh stamps, filter resets) while a human can't accidentally overwrite a
+  formula. A "🔓 Unlock Sheets to Edit" button is provided for anyone who needs to restructure.
+- **Real monthly man-hours** — Settings now has an editable Jan–Dec man-hours table (instead
+  of one flat annual number ÷ 12). TRIR/LTIFR use the exact hours for whatever period is
+  selected, so a low-hours month (e.g. a shutdown) no longer distorts the rate.
+- **Board Pack PDF** — a new Cover Page + "📦 Export Board Pack" button combines the Cover,
+  Executive Dashboard and Leadership Review into one ready-to-send PDF.
+- **Fixed a real range-limit bug**: formula ranges were capped at 5,000 rows (contradicting
+  the "supports 100,000 records" claim); now genuinely 100,000. Auto-calculated columns
+  (Attendance %, Ageing, Timeliness, etc.) are also pre-filled with live formulas 1,000 rows
+  deep so new data entered below the sample rows works immediately without copying formulas.
+
 ## Round 3: every tracker on the Executive Dashboard + rich per-tracker analysis (131 charts)
 - **Executive Dashboard KPI wall** now carries a headline KPI from **all 24 trackers** (not
   a subset) — e.g. Toolbox Talks (# + Avg Attendance %), JSA (# + % Approved), Workplace/
