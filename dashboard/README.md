@@ -144,6 +144,39 @@ Every tracker dashboard also gained a **month-over-month delta strip** under its
 ("This month (Jun): 14  vs  May: 11  ▲ +27.3%"), independent of whether a specific Register
 Month is selected.
 
+## Round 9: three new sheets, three new automation macros, and a safer take on YoY
+- **Data Quality sheet** — pure-formula integrity checks across all 24 registers: blank
+  Department/Date, duplicate IDs, dates outside the reporting year, and end-date-before-
+  start-date logic errors (e.g. a Completion Date earlier than its Date Raised). Every
+  register currently reports clean — the point is to catch bad *future* manual entry.
+- **Industry Benchmark overlay** — the Executive Dashboard's TRIR/LTIFR trend charts now plot
+  a dashed reference line against a configurable `Industry Benchmark TRIR`/`LTIFR` (Settings).
+- **Certificate expiry tracking** — Training gained a `Certificate Expiry` auto-column
+  (Date + a configurable `Certificate Validity` period) and an Advanced Analysis block showing
+  certificates expiring in the next 30/60/90 days, by department.
+- **Investigation Log** — a new 5-Why root-cause template: pick an Incident ID or NC No. and
+  Department/Classification-Severity auto-fill from that record; Why 1-5, Root Cause,
+  Corrective Action and Investigator are analyst input.
+- **My Actions** — a "🗂 Build Action Tracker" button (Home) consolidates every currently-overdue
+  row across the 8 due-date-bearing registers into one sheet (owner, due date, days overdue),
+  instead of only the per-tracker counts the System-Wide Backlog already showed.
+- **Overdue alert drafts** — "📧 Draft Overdue Alerts" groups My Actions by owner and opens one
+  Outlook draft per owner listing their items — draft only, never auto-sent, since owner names
+  aren't mapped to email addresses in this data.
+- **Department report export** — "📄 Export Department Report" temporarily filters the Executive
+  Dashboard + Leadership Review to one department and exports a PDF, then restores the prior
+  filter.
+- **Change Log** — a `Workbook_SheetChange` handler now appends who/what/when/old-value/new-value
+  to a new Change Log sheet whenever a cell is edited on any of the 24 registers.
+- **Year-over-Year comparison** — a new "Prior Year Actuals" block on Settings (TRIR, LTIFR,
+  Total Incidents, Training/Obs/CA Closure %) that you type in once a year, compared on
+  Leadership Review against the current year-to-date. **Scoping note:** a *true* YoY would need
+  a second year of underlying register data and a Year filter threaded through every one of the
+  ~200 formula call sites that currently assume a single reporting year — too invasive a refactor
+  of an already-validated system to risk here. This additive version delivers the same leadership
+  conversation (this year vs last year) without that regression risk; ask if you'd like the full
+  two-year rebuild as a separate, dedicated pass.
+
 ## Round 5: per-tracker slicers, real RAG-vs-target on every card, sparklines, radar upgrade,
 ## department data bars, Top Movers, print-ready layout
 - **Per-tracker slicers** — a "🎚 Add Tracker Slicers" button (Home) adds a real, Table-bound

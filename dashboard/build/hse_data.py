@@ -126,7 +126,7 @@ REGISTERS = [
  {"key":"training","sheet":"Training","emoji":"🎓","code":"TRN",
   "headers":["S.No","Training ID","Date","Month","Course Name","Training Type","Department",
     "Trainer","Mode","Target Attendees","Actual Attendees","Attendance %","Duration (hrs)",
-    "Status","Assessment Result","Certificate Issued"],
+    "Status","Assessment Result","Certificate Issued","Certificate Expiry"],
   "auto":{"Attendance %":("Actual Attendees","Target Attendees")},
   "cat":"Training Type","cat2":"Mode","status":"Status"},
  {"key":"hseobs","sheet":"HSE Observations","emoji":"👁️","code":"OBS",

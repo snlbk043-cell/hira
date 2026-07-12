@@ -167,6 +167,7 @@ class EHS:
         calc_cols = set(auto.keys())
         if spec["key"]=="incident": calc_cols.add("Ageing (Days)")
         if spec["key"]=="ca": calc_cols.add("Timeliness")
+        if spec["key"]=="training": calc_cols.add("Certificate Expiry")
         FORMULA_BUFFER = 1000   # auto-calc formulas are pre-filled this many rows for frictionless growth
         for r,row in enumerate(rows):
             er=D0-1+r   # 0-indexed excel row (D0=4 -> er=3 for first data row after header at row index 2)
@@ -205,12 +206,19 @@ class EHS:
                 du=xl_rowcol_to_cell(er,headers.index("Due Date"))
                 st=xl_rowcol_to_cell(er,headers.index("Status"))
                 ws.write_formula(er,ci,'=IF(%s="","",IF(%s="Closed",IF(%s<=%s,"On-Time","Delayed"),"Pending"))'%(st,st,cd,du),F["cell_l"],0)
+            if spec["key"]=="training":
+                ci=headers.index("Certificate Expiry")
+                dt=xl_rowcol_to_cell(er,headers.index("Date"))
+                cert=xl_rowcol_to_cell(er,headers.index("Certificate Issued"))
+                ws.write_formula(er,ci,'=IF(%s="Yes",%s+CertValidityDays,"")'%(cert,dt),F["date"],0)
         last=D0-1+max(len(rows), FORMULA_BUFFER)
         ws.add_table(2,0,last,nc-1, {"name":"t_"+spec["key"],"style":"Table Style Medium 9",
             "columns":[{"header":h} for h in headers]})
         for i,h in enumerate(headers):
             if h in calc_cols:
-                colfmt = F["cell_l"] if (spec["key"]=="ca" and h=="Timeliness") else F["cell_calc"]
+                if spec["key"]=="ca" and h=="Timeliness": colfmt=F["cell_l"]
+                elif spec["key"]=="training" and h=="Certificate Expiry": colfmt=F["date"]
+                else: colfmt=F["cell_calc"]
             else:
                 colfmt = F["cell_in"]
             ws.set_column(i,i, max(9,min(24,len(h)+2)), colfmt)
@@ -265,7 +273,12 @@ class EHS:
         r=4; r=block(r,"ORGANISATION")
         for lbl,val in [("Company Name","RCPL — Campa Cola"),("Plant / Site","CSD Manufacturing Plant"),
                         ("Location","India"),("Reporting Year",HD.YEAR)]:
-            ws.write(r,1,lbl,F["set_lbl"]); ws.write(r,2,val,F["set_val"]); r+=1
+            ws.write(r,1,lbl,F["set_lbl"])
+            if lbl=="Reporting Year":
+                ws.write_number(r,2,val,F["set_val"]); self.wb.define_name("ReportYear","=Settings!$C$%d"%(r+1))
+            else:
+                ws.write(r,2,val,F["set_val"])
+            r+=1
         r+=1; r=block(r,"EHS CALCULATION PARAMETERS")
         ws.write(r,1,"Monthly Man-Hours Worked",F["bodyb"])
         ws.write(r,3,"Edit per month for accuracy — TRIR/LTIFR use the exact hours for the selected period, not a flat average.",F["set_note"])
@@ -306,6 +319,29 @@ class EHS:
         cp=[("Downtime Cost per Minute (₹)",150,"Stop Work Authority downtime → estimated cost","CostPerDowntimeMin"),
             ("Lost-Day Cost per Day (₹)",8000,"Incident lost days → estimated cost","CostPerLostDay")]
         for lbl,val,note,name in cp:
+            ws.write(r,1,lbl,F["set_lbl"]); ws.write_number(r,2,val,F["set_val"])
+            ws.write(r,3,note,F["set_note"])
+            self.wb.define_name(name,"=Settings!$C$%d"%(r+1)); r+=1
+
+        r+=1; r=block(r,"INDUSTRY BENCHMARKING")
+        bm=[("Industry Benchmark TRIR",1.5,"Reference line on the Executive TRIR trend chart","BenchTRIR"),
+            ("Industry Benchmark LTIFR",2.5,"Reference line on the Executive LTIFR trend chart","BenchLTIFR")]
+        for lbl,val,note,name in bm:
+            ws.write(r,1,lbl,F["set_lbl"]); ws.write_number(r,2,val,F["set_val"])
+            ws.write(r,3,note,F["set_note"])
+            self.wb.define_name(name,"=Settings!$C$%d"%(r+1)); r+=1
+
+        r+=1; r=block(r,"TRAINING PARAMETERS")
+        ws.write(r,1,"Certificate Validity (days)",F["set_lbl"]); ws.write_number(r,2,365,F["set_val"])
+        ws.write(r,3,"Certificate Issued date + this many days = expiry (Training dashboard)",F["set_note"])
+        self.wb.define_name("CertValidityDays","=Settings!$C$%d"%(r+1)); r+=1
+
+        r+=1; r=block(r,"PRIOR YEAR ACTUALS  ·  type in last year's year-end figures for a genuine YoY comparison "
+                        "(left blank/0 until entered - never fabricated)")
+        py=[("Prior Year TRIR",0,"","PYTRIR"),("Prior Year LTIFR",0,"","PYLTIFR"),
+            ("Prior Year Total Incidents",0,"","PYTotalInc"),("Prior Year Training Compliance %",0,"","PYTrain"),
+            ("Prior Year Obs Closure %",0,"","PYObs"),("Prior Year CA Closure %",0,"","PYCA")]
+        for lbl,val,note,name in py:
             ws.write(r,1,lbl,F["set_lbl"]); ws.write_number(r,2,val,F["set_val"])
             ws.write(r,3,note,F["set_note"])
             self.wb.define_name(name,"=Settings!$C$%d"%(r+1)); r+=1
@@ -641,6 +677,13 @@ class EHS:
         for i in range(12):
             ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*LTIFRmult/Settings!$C$%d,0)"%(lf_col,hr+1+i,self._mh_first+i),F["td"],0)
         scol["ltifr_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
+        # industry benchmark reference lines (flat, one repeated Settings value per month)
+        ws.write(hr-1,c0,"bench_trir_m",F["th"])
+        for i in range(12): ws.write_formula(hr+i,c0,"=BenchTRIR",F["td"],0)
+        scol["bench_trir_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
+        ws.write(hr-1,c0,"bench_ltifr_m",F["th"])
+        for i in range(12): ws.write_formula(hr+i,c0,"=BenchLTIFR",F["td"],0)
+        scol["bench_ltifr_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
         # alcohol positive-rate % trend (direct per-month reference to alcohol_positive/alcohol_total)
         ap_col=scol_col["alcohol_positive"]; at_col=scol_col["alcohol_total"]
         ws.write(hr-1,c0,"alcohol_rate_m",F["th"])
@@ -1125,6 +1168,27 @@ class EHS:
         self.RR["_toolbox_heat_meta"]={"top":tb0,"col0":c0,"nrows":len(topics),"ncols":len(topdepts2)}
         r=tb0+len(topics)+2
 
+        # ---- Training: Certificates Expiring Soon (30/60/90 days) ----
+        tr_sp=spec_of("training"); CE=rng(tr_sp,"Certificate Expiry"); TD=rng(tr_sp,"Department")
+        ce0=r
+        ws.write(ce0-1,c0,"Window",F["th"]); ws.write(ce0-1,c0+1,"Count",F["th"])
+        windows=[("Next 30 days",30),("Next 60 days",60),("Next 90 days",90)]
+        for i,(lbl,days) in enumerate(windows):
+            ws.write(ce0+i,c0,lbl,F["tdl"])
+            f='COUNTIFS(%s,"<>",%s,"<="&(TODAY()+%d),%s,">="&TODAY(),%s,dCrit)'%(CE,CE,days,CE,TD)
+            ws.write_formula(ce0+i,c0+1,"="+f,F["tdn"],0)
+        self.RR["_cert_expiry_lbl"]=self._a1(ce0,c0,ce0+2); self.RR["_cert_expiry_val"]=self._a1(ce0,c0+1,ce0+2)
+        r=ce0+5
+        ced0=r; cedepts=HD.DEPARTMENTS
+        ws.write(ced0-1,c0,"Department",F["th"]); ws.write(ced0-1,c0+1,"Expiring (90d)",F["th"])
+        for i,d in enumerate(cedepts):
+            ws.write(ced0+i,c0,d,F["tdl"])
+            f='COUNTIFS(%s,"<>",%s,"<="&(TODAY()+90),%s,">="&TODAY(),%s,"%s")'%(CE,CE,CE,TD,d)
+            ws.write_formula(ced0+i,c0+1,"="+f,F["tdn"],0)
+        self.RR["_cert_expiry_dept_lbl"]=self._a1(ced0,c0,ced0+len(cedepts)-1)
+        self.RR["_cert_expiry_dept_val"]=self._a1(ced0,c0+1,ced0+len(cedepts)-1)
+        r=ced0+len(cedepts)+2
+
         # ---- Per-tracker Overdue Ageing (0-7/8-15/16-30/31+ days) for every tracker with a
         # due-date field, feeding both that tracker's own dashboard chart and the system-wide
         # backlog rollup below ----
@@ -1581,6 +1645,135 @@ class EHS:
         cL=xl_col_to_name(c)
         return "Calculations!$%s$%d:$%s$%d"%(cL,r0+1,cL,r1+1)
 
+    def _rng_bounded(self, spec, name, n):
+        """Like rng(), but bounded to the actual data rows (not the 100,000-row growth
+        buffer) - required for any O(n^2)-ish check like duplicate-ID detection."""
+        c=col(spec,name)
+        return "'%s'!$%s$%d:$%s$%d"%(spec["sheet"],c,D0,c,D0-1+n)
+
+    # ---------------------------------------------------------------- data quality
+    def write_data_quality(self):
+        """Pure-formula integrity checks across all 24 registers: blank required fields,
+        duplicate IDs, dates outside the reporting year, and end-date-before-start-date
+        logic errors - catches bad manual entry, doesn't just trust the data."""
+        F=self.F; ws=self.wb.add_worksheet("Data Quality"); ws.set_tab_color(RED)
+        ws.hide_gridlines(2); ws.set_column("A:A",2); ws.set_column("B:B",26)
+        for cc in range(2,10): ws.set_column(cc,cc,15)
+        ws.merge_range("B2:J2","🔎  DATA QUALITY — automatic integrity checks across all 24 registers", F["section"])
+        ws.write("B3","Recalculates on every Refresh. A register only needs attention if a count is greater than 0.",F["note"])
+        hdrs=["Register","Records","Blank Dept","Blank Date","Duplicate IDs","Outside Report Year","Date-Logic Issues","Flag"]
+        for j,h in enumerate(hdrs): ws.write(4,1+j,h,F["th"])
+        DATE_LOGIC={"ca":("Date Raised","Completion Date"),"nc":("Date Raised","Actual Close Date"),
+                    "incident":("Date","Closure Date")}
+        r=5
+        for spec in HD.REGISTERS:
+            n=len(DATA[spec["key"]]); headers=spec["headers"]
+            ws.write(r,1,spec["sheet"],F["tdl"])
+            idcol=self._rng_bounded(spec,headers[1],n)
+            ws.write_formula(r,2,"=COUNTA(%s)"%idcol,F["tdn"],0)
+            if has(spec,"Department"):
+                deptcol=self._rng_bounded(spec,"Department",n)
+                ws.write_formula(r,3,"=COUNTBLANK(%s)"%deptcol,F["tdn"],0)
+            else:
+                ws.write(r,3,"n/a",F["td"])
+            datefield=None
+            for cand in ("Date","Date Raised","Date Issued"):
+                if cand in headers: datefield=cand; break
+            if datefield:
+                datecol=self._rng_bounded(spec,datefield,n)
+                ws.write_formula(r,4,"=COUNTBLANK(%s)"%datecol,F["tdn"],0)
+            else:
+                ws.write(r,4,"n/a",F["td"])
+            ws.write_formula(r,5,"=SUMPRODUCT((COUNTIF(%s,%s)>1)*1)"%(idcol,idcol),F["tdn"],0)
+            if datefield:
+                ws.write_formula(r,6,'=SUMPRODUCT((%s<>"")*(YEAR(%s)<>ReportYear))'%(datecol,datecol),F["tdn"],0)
+            else:
+                ws.write(r,6,"n/a",F["td"])
+            if spec["key"] in DATE_LOGIC:
+                startf,endf=DATE_LOGIC[spec["key"]]
+                startcol=self._rng_bounded(spec,startf,n); endcol=self._rng_bounded(spec,endf,n)
+                ws.write_formula(r,7,'=SUMPRODUCT((%s<>"")*(%s<%s))'%(endcol,endcol,startcol),F["tdn"],0)
+            else:
+                ws.write(r,7,"n/a",F["td"])
+            cD=xl_rowcol_to_cell(r,3); cE=xl_rowcol_to_cell(r,4); cF=xl_rowcol_to_cell(r,5)
+            cG=xl_rowcol_to_cell(r,6); cH=xl_rowcol_to_cell(r,7)
+            ws.write_formula(r,8,'=IF(N(%s)+N(%s)+N(%s)+N(%s)+N(%s)>0,"⚠ REVIEW","✅ OK")'%(cD,cE,cF,cG,cH),F["tdl"],0)
+            r+=1
+        last=r-1
+        ws.conditional_format(5,8,last,8,{"type":"text","criteria":"containing","value":"REVIEW",
+            "format":self._fmt(bg_color=RED_L,font_color=RED,bold=True)})
+        ws.conditional_format(5,8,last,8,{"type":"text","criteria":"containing","value":"OK",
+            "format":self._fmt(bg_color=GREEN_L,font_color=GREEN,bold=True)})
+        r+=1
+        ws.write(r,1,"TOTAL ISSUES (all registers)",F["bodyb"])
+        totf=self._fmt(font_name="Segoe UI",font_size=11,bold=True,font_color=RED,align="center",
+            valign="vcenter",bg_color=GREY_L,border=1,border_color="#D8E1EB")
+        for cc in (3,4,5,6,7):
+            colL=xl_col_to_name(cc)
+            ws.write_formula(r,cc,"=SUMPRODUCT(N(%s$6:%s$%d))"%(colL,colL,last+1),totf,0)
+        ws.write_url(0,1,"internal:'Home'!A1",F["note"],"Home")
+
+    # ---------------------------------------------------------------- investigation log
+    def write_investigation_log(self):
+        """5-Why root-cause investigation template, linked to an Incident ID or NC No. -
+        picking either auto-fills Department & Classification/Severity from that record."""
+        F=self.F; ws=self.wb.add_worksheet("Investigation Log"); ws.set_tab_color(ACCENT)
+        headers=["S.No","Investigation ID","Date","Incident ID","NC No.","Department","Classification / Severity",
+                  "Why 1","Why 2","Why 3","Why 4","Why 5","Root Cause","Corrective Action","Investigator","Status"]
+        nc=len(headers)
+        ws.merge_range(0,0,0,nc-1,"🔬  INVESTIGATION LOG — 5-Why Root-Cause Analysis  —  DATA ENTRY",F["reg_title"])
+        ws.set_row(0,22)
+        ws.merge_range(1,0,1,nc-1,
+            "Pick an Incident ID OR an NC No. (not both) — Department & Classification/Severity auto-fill. "
+            "Blue = user input   ·   Gray = auto-calculated", F["reg_legend"])
+        for i,h in enumerate(headers):
+            ws.write(2,i,h,F["reg_hdr"])
+        inc=spec_of("incident"); ncs=spec_of("nc")
+        n_inc=len(DATA["incident"]); n_nc=len(DATA["nc"])
+        inc_id_bounded=self._rng_bounded(inc,"Incident ID",n_inc)
+        nc_id_bounded=self._rng_bounded(ncs,"NC No.",n_nc)
+        inc_id_full=rng(inc,"Incident ID"); inc_dept_full=rng(inc,"Department"); inc_cls_full=rng(inc,"Classification")
+        nc_id_full=rng(ncs,"NC No."); nc_dept_full=rng(ncs,"Department"); nc_sev_full=rng(ncs,"Severity")
+        ROWS=300
+        for r in range(ROWS):
+            er=3+r
+            ws.write_number(er,0,r+1,F["cell_in"])
+            for c in (1,2,3,4,7,8,9,10,11,12,13,14,15):
+                fmt=F["date_in"] if c==2 else (F["cell_in_l"] if c in (1,7,8,9,10,11,12,13,14) else F["cell_in"])
+                ws.write(er,c,"",fmt)
+            iid=xl_rowcol_to_cell(er,3); ncid=xl_rowcol_to_cell(er,4)
+            ws.write_formula(er,5,'=IFERROR(INDEX(%s,MATCH(%s,%s,0)),IFERROR(INDEX(%s,MATCH(%s,%s,0)),""))'%(
+                inc_dept_full,iid,inc_id_full,nc_dept_full,ncid,nc_id_full),F["cell_calc"],0)
+            ws.write_formula(er,6,'=IFERROR(INDEX(%s,MATCH(%s,%s,0)),IFERROR(INDEX(%s,MATCH(%s,%s,0)),""))'%(
+                inc_cls_full,iid,inc_id_full,nc_sev_full,ncid,nc_id_full),F["cell_calc"],0)
+        ws.add_table(2,0,2+ROWS,nc-1,{"name":"t_investigation","style":"Table Style Medium 9",
+            "columns":[{"header":h} for h in headers]})
+        ws.data_validation(3,3,2+ROWS,3,{"validate":"list","source":"=%s"%inc_id_bounded.replace("'","")})
+        ws.data_validation(3,4,2+ROWS,4,{"validate":"list","source":"=%s"%nc_id_bounded.replace("'","")})
+        ws.data_validation(3,15,2+ROWS,15,{"validate":"list","source":"=L_Status"})
+        for i,h in enumerate(headers):
+            width = 12 if h in ("S.No","Date","Incident ID","NC No.","Status") else (18 if h in ("Department","Classification / Severity","Investigator") else 26)
+            colfmt = F["cell_calc"] if h in ("Department","Classification / Severity") else F["cell_in"]
+            ws.set_column(i,i,width,colfmt)
+        ws.freeze_panes(3,0); ws.set_zoom(90)
+        ws.repeat_rows(0,2); ws.set_landscape(); ws.fit_to_pages(1,0)
+        ws.write_url(0,nc+1,"internal:'Home'!A1",F["reg_legend"],"Home")
+
+    # ---------------------------------------------------------------- change log
+    def write_change_log(self):
+        """Empty audit-trail sheet, appended to by the Workbook_SheetChange VBA handler
+        whenever someone edits a cell on any of the 24 registers - who, what, when, old/new
+        value. Nothing to pre-fill; the log only grows as the workbook is actually used."""
+        F=self.F; ws=self.wb.add_worksheet("Change Log"); ws.set_tab_color(GREY_D)
+        ws.hide_gridlines(2); ws.set_column("A:A",2); ws.set_column("B:B",20)
+        ws.set_column("C:C",24); ws.set_column("D:D",12); ws.set_column("E:F",20); ws.set_column("G:G",18)
+        ws.merge_range("B2:G2","📝  CHANGE LOG — automatic audit trail of register edits (who, what, when)",F["section"])
+        ws.write("B3","Populated automatically by Workbook_SheetChange whenever a register cell is edited. "
+                       "Old Value shows '(n/a)' for multi-cell pastes (only single-cell edits are tracked before/after).",F["note"])
+        hdrs=["Timestamp","Sheet","Cell","Old Value","New Value","User"]
+        for j,h in enumerate(hdrs): ws.write(4,1+j,h,F["th"])
+        ws.write_url(0,1,"internal:'Home'!A1",F["note"],"Home")
+
 
 def _to_dt(v):
     if isinstance(v, datetime.date): return datetime.datetime(v.year,v.month,v.day)
@@ -1594,6 +1787,9 @@ if __name__ == "__main__":
     e.write_master()
     e.write_settings()
     e.write_help()
+    e.write_data_quality()
+    e.write_investigation_log()
+    e.write_change_log()
     e.write_calc()
     import hse_dash
     hse_dash.build(e)

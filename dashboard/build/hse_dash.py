@@ -167,24 +167,33 @@ def build_home(e):
         "width":170,"height":26,"x_offset":2,"y_offset":4})
     ws.insert_button(btnrow,11,{"macro":"BuildTrackerSlicers","caption":"🎚 Add Tracker Slicers",
         "width":170,"height":26,"x_offset":2,"y_offset":4})
+    btnrow2=btnrow+1
+    ws.set_row(btnrow2,32)
+    ws.insert_button(btnrow2,1,{"macro":"BuildActionTracker","caption":"🗂 Build Action Tracker (all overdue items)",
+        "width":270,"height":26,"x_offset":2,"y_offset":4})
+    ws.insert_button(btnrow2,5,{"macro":"SendOverdueAlerts","caption":"📧 Draft Overdue Alerts (Outlook)",
+        "width":210,"height":26,"x_offset":2,"y_offset":4})
+    ws.insert_button(btnrow2,9,{"macro":"ExportDepartmentReport","caption":"📄 Export Department Report",
+        "width":210,"height":26,"x_offset":2,"y_offset":4})
     # register + dashboard index (two columns: tracker name -> register | dashboard)
-    ws.merge_range("B15:M15","TRACKER REGISTERS & DASHBOARDS  (click either link)",F["section"])
+    ws.merge_range("B16:M16","TRACKER REGISTERS & DASHBOARDS  (click either link)",F["section"])
     lblf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=INK,bg_color=GREY_L,
         align="left",valign="vcenter",border=1,border_color=WHITE)
     linkf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=BLUE_D,bg_color=BLUE_L,
         align="center",valign="vcenter",border=1,border_color=WHITE,underline=True)
-    r=16
+    r=17
     for i,spec in enumerate(HD.REGISTERS):
-        rr=16+(i//2); base=1+(i%2)*9
+        rr=17+(i//2); base=1+(i%2)*9
         ws.merge_range(rr,base,rr,base+3,"%s  %s"%(spec["emoji"],spec["sheet"]),lblf)
         ws.merge_range(rr,base+4,rr,base+5,"",linkf); ws.write_url(rr,base+4,"internal:'%s'!A1"%spec["sheet"],linkf,"Register")
         ws.merge_range(rr,base+6,rr,base+7,"",linkf); ws.write_url(rr,base+6,"internal:'%s'!A1"%dash_name(spec),linkf,"Dashboard")
-    last=16+((len(HD.REGISTERS)-1)//2)
+    last=17+((len(HD.REGISTERS)-1)//2)
     # data & docs
     r2=last+2
     ws.merge_range(r2,1,r2,12,"DATA & CONFIGURATION",F["section"]); r2+=1
     links=[("Master Data","Master Data"),("Settings","Settings"),("Help","Help"),
-           ("Calculations","Calculations"),("Incident Register","Incident"),("Corrective Actions","Corrective Actions")]
+           ("Calculations","Calculations"),("Incident Register","Incident"),("Corrective Actions","Corrective Actions"),
+           ("Data Quality","Data Quality"),("Investigation Log","Investigation Log")]
     lf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=GREY_D,bg_color=GREY_L,
         align="center",valign="vcenter",border=1,border_color=WHITE,underline=True)
     for i,(cap,sh) in enumerate(links):
@@ -288,12 +297,19 @@ def build_exec(e):
     c3=e.col_chart(_months(e),[("Near Miss",MS["nearmiss"],GREEN)],"Near Miss Trend")
     place_chart(e,ws,row,1,c1,486,280); place_chart(e,ws,row,7,c2,486,280); place_chart(e,ws,row,13,c3,486,280)
     row+=15
-    c4=e.line_chart(_months(e),MS["trir_m"],"TRIR Trend",RED)
+    c4=e.wb.add_chart({"type":"line"})
+    c4.add_series({"name":"TRIR","categories":_months(e),"values":MS["trir_m"],
+        "line":{"color":RED,"width":2.25},"marker":{"type":"circle","size":5,"fill":{"color":RED}}})
+    c4.add_series({"name":"Industry Benchmark TRIR","categories":_months(e),"values":MS["bench_trir_m"],
+        "line":{"color":GREY_M,"width":1.5,"dash_type":"dash"}})
+    e._style(c4,"TRIR Trend vs Industry Benchmark")
     c4b=e.wb.add_chart({"type":"line"})
     c4b.add_series({"name":"LTIFR","categories":_months(e),"values":MS["ltifr_m"],"y2_axis":True,
         "line":{"color":ACCENT,"width":2.25},"marker":{"type":"circle","size":5,"fill":{"color":ACCENT}}})
+    c4b.add_series({"name":"Industry Benchmark LTIFR","categories":_months(e),"values":MS["bench_ltifr_m"],"y2_axis":True,
+        "line":{"color":GREY_D,"width":1.5,"dash_type":"dash"}})
     c4.combine(c4b); c4.set_y2_axis({"num_font":{"size":8}})
-    c4.set_title({"name":"TRIR & LTIFR Trend (dual-axis)","name_font":{"name":"Segoe UI","size":10.5,"bold":True,"color":BLUE_D}})
+    c4.set_title({"name":"TRIR & LTIFR Trend vs Industry Benchmark (dual-axis)","name_font":{"name":"Segoe UI","size":10.5,"bold":True,"color":BLUE_D}})
     c5=e.col_chart(_months(e),[("Unsafe Act",MS["ua_m"],AMBER),("Unsafe Condition",MS["uc_m"],BLUE_M)],
         "Unsafe Act vs Unsafe Condition",stacked=True)
     c6=e.dough(RR["incident"]["cat_lbl"],RR["incident"]["cat_val"],"Incident Classification",
@@ -496,6 +512,35 @@ def build_leadership(e):
                 ws.write_formula(rr,qcol+1+j,"="+numparts[j],F["tdn"],0)
     row+=16
 
+    # ---- Year-over-Year comparison (current YTD vs Settings' Prior Year Actuals) ----
+    ws.merge_range(row,1,row,18,
+        "YEAR-OVER-YEAR COMPARISON  ·  current year-to-date vs last year's actuals (enter last year's figures on Settings)",
+        F["section"]); row+=1
+    ytd_n="IF(CurMonthNo=0,12,CurMonthNo)"
+    def ytd_sum(seriesname):
+        rngstr=MS[seriesname]
+        return "SUM(INDEX(%s,1):INDEX(%s,%s))"%(rngstr,rngstr,ytd_n)
+    def ytd_avg(seriesname):
+        rngstr=MS[seriesname]
+        return "AVERAGE(INDEX(%s,1):INDEX(%s,%s))"%(rngstr,rngstr,ytd_n)
+    yoy=[("TRIR",ytd_avg("trir_m"),"PYTRIR","dec"),
+         ("LTIFR",ytd_avg("ltifr_m"),"PYLTIFR","dec"),
+         ("Total Incidents",ytd_sum("totalinc"),"PYTotalInc","num"),
+         ("Training Compliance %","IFERROR(%s/%s*100,0)"%(ytd_sum("train_completed"),ytd_sum("training_total")),"PYTrain","pct"),
+         ("Obs Closure %","IFERROR(%s/%s*100,0)"%(ytd_sum("obs_closed"),ytd_sum("obs_total")),"PYObs","pct"),
+         ("CA Closure %","IFERROR(%s/%s*100,0)"%(ytd_sum("ca_closed"),ytd_sum("ca_total")),"PYCA","pct")]
+    hdrs=["Metric","Current YTD","Prior Year","Δ vs Prior Year"]
+    for j,h in enumerate(hdrs): ws.write(row,1+j,h,F["th"])
+    for i,(lbl,curf,pyname,kind) in enumerate(yoy):
+        rr=row+1+i; nf=F["td"] if kind=="dec" else (F["tdp"] if kind=="pct" else F["tdn"])
+        ws.write(rr,1,lbl,F["tdl"])
+        ws.write_formula(rr,2,"="+curf,nf,0)
+        ws.write_formula(rr,3,"="+pyname,nf,0)
+        curcell=xl_rowcol_to_cell(rr,2)
+        ws.write_formula(rr,4,'=IF(%s=0,"(enter prior year data)",TEXT((%s-%s)/%s,"+0.0%%;-0.0%%"))'%(
+            pyname,curcell,pyname,pyname),F["tdl"],0)
+    row+=len(yoy)+3
+
     # ---- Auto-generated insight bullets ----
     ws.merge_range(row,1,row,18,"KEY INSIGHTS  ·  auto-generated from this period's data",F["section"]); row+=1
     insf=e._fmt(font_name="Segoe UI",font_size=10,font_color=INK,bg_color=GREY_L,align="left",
@@ -616,10 +661,26 @@ def _advanced_analysis(e, ws, row, spec, RR):
     has_hotspot = key in HOTSPOT_KEYS
     has_forecast = key in FORECAST
     has_cost = key in ("swa","incident")
-    if not (has_aging or has_hotspot or has_forecast or has_cost):
+    has_certexp = key=="training"
+    if not (has_aging or has_hotspot or has_forecast or has_cost or has_certexp):
         return row
 
     ws.merge_range(row,1,row,18,"ADVANCED ANALYSIS",F["section"]); row+=1
+
+    if has_certexp:
+        ce_lbl=e.RR["_cert_expiry_lbl"]; ce_val=e.RR["_cert_expiry_val"]
+        for i in range(3):
+            tf=e._fmt(font_name="Segoe UI",font_size=8.5,bold=True,font_color=GREY_M,align="left",valign="vcenter")
+            vf=e._fmt(font_name="Segoe UI",font_size=17,bold=True,font_color=AMBER,align="left",valign="vcenter")
+            ws.write_formula(row,1+i*6,"=INDEX(%s,%d)"%(ce_lbl,i+1),tf,0)
+            ws.write_formula(row+1,1+i*6,"=INDEX(%s,%d)"%(ce_val,i+1),vf,0)
+        row+=3
+        ch=e.bar_chart(e.RR["_cert_expiry_dept_lbl"],e.RR["_cert_expiry_dept_val"],
+            "Certificates Expiring Within 90 Days, by Department",AMBER)
+        place_chart(e,ws,row,1,ch,486,290)
+        row+=16
+        return row
+
     charts=[]
     if has_aging:
         charts.append(e.bar_chart(e.RR[key+"_aging_lbl"],e.RR[key+"_aging_val"],"Overdue Ageing (open items)",AMBER))
