@@ -55,6 +55,28 @@ def tile(e, ws, r, c, label, valformula, kind, accent, w=3):
     ws.merge_range(r+2,c,r+3,c+w-1,valformula,vv)
     ws.merge_range(r+4,c,r+4,c+w-1,"live · auto-calculated",ss)
 
+def vtile(e, ws, r, c, label, ex, kind, accent, w=4):
+    """RCPL-style KPI card with period variance (▲/▼ + Δ% vs prior, polarity-coloured)."""
+    strip,tt,vv,ss=e.cardfmt(accent, kind)
+    ws.merge_range(r,c,r,c+w-1,"",strip); ws.set_row(r,4)
+    ws.merge_range(r+1,c,r+1,c+w-1,label.upper(),tt)
+    ws.merge_range(r+2,c,r+3,c+w-2,"="+ex["cur"],vv)
+    # prior value (small, right of the big number)
+    prf=e._fmt(font_name="Segoe UI",font_size=8,font_color=GREY_M,bg_color=WHITE,align="right",
+        valign="bottom",right=1,border_color="#E2E8F0",num_format=("0.00" if kind=="dec" else ('0.0"%"' if kind=="pct" else "#,##0")))
+    ws.merge_range(r+2,c+w-1,r+3,c+w-1,'=%s'%ex["prior"],prf)
+    # variance row (arrow + Δ% vs prior) coloured by "good" sign via conditional formatting
+    vgood=e._fmt(font_name="Segoe UI",font_size=8.5,bold=True,font_color=GREEN,bg_color=WHITE,align="left",
+        valign="vcenter",left=1,right=1,bottom=1,border_color="#E2E8F0")
+    ws.merge_range(r+4,c,r+4,c+w-1,
+        '=IF(%s=0,IF(%s>0,"▲ new vs prior","● no data"),IF(%s=%s,"● 0.0%% vs prior",'
+        '(IF(%s>%s,"▲ ","▼ "))&TEXT(ABS(%s),"0.0%%")&" vs prior ("&TEXT(%s,"General")&")"))'%(
+        ex["prior"],ex["cur"],ex["cur"],ex["prior"],ex["cur"],ex["prior"],ex["delta"],ex["prior"]),
+        vgood)
+    ws.conditional_format(r+4,c,r+4,c+w-1,{"type":"formula","criteria":"=%s<0"%ex["goodname"],
+        "format":e._fmt(font_name="Segoe UI",font_size=8.5,bold=True,font_color=RED,bg_color=WHITE,
+        align="left",valign="vcenter",left=1,right=1,bottom=1,border_color="#E2E8F0")})
+
 def place_chart(e, ws, r, c, ch, w=470, h=260):
     ch.set_size({"width":w,"height":h}); ws.insert_chart(r,c,ch)
 
@@ -109,58 +131,91 @@ def build_home(e):
 
 # ---- Executive -----------------------------------------------------------
 def build_exec(e):
-    F=e.F; RR=e.RR; ws=e.wb.add_worksheet("Executive Dashboard"); ws.set_tab_color(BLUE_D)
+    F=e.F; RR=e.RR; EX=e.EX; ws=e.wb.add_worksheet("Executive Dashboard"); ws.set_tab_color(BLUE_D)
     gridcols(ws); ws.set_zoom(80)
-    row=header(e,ws,"🏆","EXECUTIVE EHS DASHBOARD","Corporate leading & lagging indicators  ·  Campa CSD Plant")
+    row=header(e,ws,"🏆","EXECUTIVE EHS DASHBOARD","Corporate leading & lagging indicators  ·  period-on-period variance")
     row=navchips(e,ws,row)
-    # filters
-    ws.merge_range(row,1,row,18,"GLOBAL FILTERS",F["section"]); row+=1
-    ws.write(row,1,"Month",F["th"]); ws.merge_range(row,2,row,3,"All",e.F["set_val"])
-    e.wb.define_name("SelMonth","='Executive Dashboard'!$C$%d"%(row+1))
-    ws.data_validation(row,2,row,2,{"validate":"list","source":"=F_Month"})
+    # filters : Period (month/quarter) + Department drive the whole sheet
+    ws.merge_range(row,1,row,18,"FILTERS  ·  select a period to compare against the previous period",F["section"]); row+=1
+    ws.write(row,1,"Period",F["th"]); ws.merge_range(row,2,row,3,"Jun",e.F["set_val"])
+    e.wb.define_name("SelPeriod","='Executive Dashboard'!$C$%d"%(row+1))
+    ws.data_validation(row,2,row,2,{"validate":"list","source":"=F_Period"})
     ws.write(row,5,"Department",F["th"]); ws.merge_range(row,6,row,7,"All",e.F["set_val"])
     e.wb.define_name("SelDept","='Executive Dashboard'!$G$%d"%(row+1))
     ws.data_validation(row,6,row,6,{"validate":"list","source":"=F_Dept"})
-    ws.merge_range(row,9,row,18,"Man-hours & RAG targets are configured on the Settings sheet.",F["note"])
+    # keep a month filter for the per-register dashboards
+    ws.write(row,9,"Register Month",F["th"]); ws.merge_range(row,10,row,11,"All",e.F["set_val"])
+    e.wb.define_name("SelMonth","='Executive Dashboard'!$K$%d"%(row+1))
+    ws.data_validation(row,10,row,10,{"validate":"list","source":"=F_Month"})
+    ws.merge_range(row,13,row,18,"Month = Jan…Dec vs previous month · Quarter Q1…Q4 vs previous quarter. Man-hours & targets: Settings.",F["note"])
     row+=2
-    # KPI tiles
-    ws.merge_range(row,1,row,18,"KEY PERFORMANCE INDICATORS",F["section"]); row+=1
-    tiles=[("TRIR","=TRIR","dec","red"),("LTIFR","=LTIFR","dec","red"),
-           ("Total Incidents","=TotalInc","num","amber"),("Near Miss","=NearMiss","num","blue"),
-           ("Obs Closure %","=ObsClosure","pct","green"),("Training Compliance %","=TrainCompliance","pct","green"),
-           ("CA Closure %","=CAClosure","pct","green"),("Lost Days","=LostDays","num","red")]
-    for i,(lbl,f,k,a) in enumerate(tiles):
-        rr=row+(i//4)*6; cc=1+(i%4)*4
-        tile(e,ws,rr,cc,lbl,f,k,a,w=4)
-    row=row+12
-    # charts
-    ws.merge_range(row,1,row,18,"INCIDENT ANALYTICS",F["section"]); row+=1
-    ch1=e.col_chart(RR["_inctrend"]["lbl"],[("Incidents",RR["_inctrend"]["val"],BLUE_M)],"12-Month Incident Trend")
-    ch2=e.bar_chart(RR["_pyramid"]["lbl"],RR["_pyramid"]["val"],"Incident Pyramid (Heinrich)",ACCENT)
-    ch3=e.bar_chart(RR["_leading"]["lbl"],RR["_leading"]["val"],"Leading Indicators (Activity Volume)",GREEN)
-    place_chart(e,ws,row,1,ch1,486,290); place_chart(e,ws,row,7,ch2,486,290); place_chart(e,ws,row,13,ch3,486,290)
+
+    # ===== LAGGING band =====
+    lagband=e._fmt(font_name="Segoe UI",font_size=12,bold=True,font_color=WHITE,bg_color=RED,
+        align="left",valign="vcenter",indent=1)
+    ws.merge_range(row,1,row,18,"🟥  LAGGING INDICATORS  —  reactive outcomes (lower is better)",lagband)
+    ws.set_row(row,20); row+=1
+    lagging=["TRIR","LTIFR","Total Incidents","Recordable","LTI + Fatality","Near Miss","First Aid","Lost Days","Disciplinary","Open NCs"]
+    _cards(e,ws,row,lagging,"red")
+    row+=12
+    # ===== LEADING band =====
+    leadband=e._fmt(font_name="Segoe UI",font_size=12,bold=True,font_color=WHITE,bg_color=GREEN,
+        align="left",valign="vcenter",indent=1)
+    ws.merge_range(row,1,row,18,"🟩  LEADING INDICATORS  —  proactive activity & prevention (higher is better)",leadband)
+    ws.set_row(row,20); row+=1
+    leading=["Trainings","Training Compliance","HSE Observations","Obs Closure","Toolbox Talks","Inspections","Audits","PTW Compliance","Emergency Drills","CA Closure"]
+    _cards(e,ws,row,leading,"green")
+    row+=12
+
+    # ===== leading vs lagging visuals =====
+    ws.merge_range(row,1,row,18,"LEADING vs LAGGING  ·  incident profile",F["section"]); row+=1
+    ch1=e.bar_chart(RR["_leading"]["lbl"],RR["_leading"]["val"],"Leading Activity (selected period)",GREEN)
+    ch2=e.bar_chart(RR["_lagging"]["lbl"],RR["_lagging"]["val"],"Lagging Outcomes (selected period)",RED)
+    ch3=e.bar_chart(RR["_pyramid"]["lbl"],RR["_pyramid"]["val"],"Incident Pyramid (Heinrich)",ACCENT)
+    place_chart(e,ws,row,1,ch1,486,300); place_chart(e,ws,row,7,ch2,486,300); place_chart(e,ws,row,13,ch3,486,300)
     row+=16
-    # RAG scorecard mirrored from Calculations
-    ws.merge_range(row,1,row,10,"RAG COMPLIANCE SCORECARD",F["section"]); row+=1
-    for j,h in enumerate(["Metric","Actual","Target","Status"]):
-        ws.write(row,1+j*2 if False else 1+j*2,h,F["th"])
-    # header cells at cols B,D,F,H
+    ws.merge_range(row,1,row,18,"TRENDS & COMPLIANCE",F["section"]); row+=1
+    t1=e.col_chart(RR["_inctrend"]["lbl"],[("Incidents",RR["_inctrend"]["val"],BLUE_M)],"12-Month Incident Trend")
+    place_chart(e,ws,row,1,t1,600,300)
+    # gauges
+    gcol=9
+    for i,(name,info) in enumerate(e.GAUGE.items()):
+        g=_gauge(e,info["range"],name); g.set_size({"width":250,"height":180}); ws.insert_chart(row,gcol+i*3,g)
+        gv=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=BLUE_D,align="center",valign="vcenter",num_format='0.0"%"')
+        ws.merge_range(row+8,gcol+i*3,row+8,gcol+i*3+2,"="+info["val"],gv)
+    row+=16
+    # RAG scorecard
+    ws.merge_range(row,1,row,8,"RAG COMPLIANCE SCORECARD",F["section"]); row+=1
     cols=[1,3,5,7]
     for j,h in enumerate(["Metric","Actual","Target","Status"]):
         ws.merge_range(row,cols[j],row,cols[j]+1,h,F["th"])
     rag=RR["_rag"]; c=rag["c"]
-    lblcol=xl_col_to_name(c); actcol=xl_col_to_name(c+1); tgtcol=xl_col_to_name(c+2); stcol=xl_col_to_name(c+3)
+    L=xl_col_to_name(c); A=xl_col_to_name(c+1); T=xl_col_to_name(c+2); S=xl_col_to_name(c+3)
     for i in range(4):
-        er=rag["first"]+i+1  # excel row
-        rr=row+1+i
-        ws.merge_range(rr,1,rr,2,"","");
-        ws.write_formula(rr,1,"=Calculations!$%s$%d"%(lblcol,er),F["tdl"],0)
-        ws.merge_range(rr,3,rr,4,"","")
-        ws.write_formula(rr,3,"=Calculations!$%s$%d"%(actcol,er),F["td"],0)
-        ws.merge_range(rr,5,rr,6,"","")
-        ws.write_formula(rr,5,"=Calculations!$%s$%d"%(tgtcol,er),F["td"],0)
-        ws.merge_range(rr,7,rr,8,"","")
-        ws.write_formula(rr,7,"=Calculations!$%s$%d"%(stcol,er),F["tdl"],0)
+        er=rag["first"]+i+1; rr=row+1+i
+        ws.merge_range(rr,1,rr,2,"=Calculations!$%s$%d"%(L,er),F["tdl"])
+        ws.merge_range(rr,3,rr,4,"=Calculations!$%s$%d"%(A,er),F["td"])
+        ws.merge_range(rr,5,rr,6,"=Calculations!$%s$%d"%(T,er),F["td"])
+        ws.merge_range(rr,7,rr,8,"=Calculations!$%s$%d"%(S,er),F["tdl"])
+
+def _cards(e, ws, row, labels, accentdefault):
+    """place a band of variance KPI cards (5 per row)."""
+    for i,lbl in enumerate(labels):
+        rr=row+(i//5)*6; cc=1+(i%5)*3+ (0 if i%5<5 else 0)
+        cc=1+(i%5)*3
+        ex=e.EX[lbl]
+        kind=ex["kind"]
+        vtile(e,ws,rr,cc,lbl,ex,kind,accentdefault,w=3)
+
+def _gauge(e, rng3, title):
+    """half-doughnut gauge from a 3-cell range (value/2, remainder, hidden 50)."""
+    ch=e.wb.add_chart({"type":"doughnut"})
+    ch.add_series({"values":rng3,
+        "points":[{"fill":{"color":GREEN}},{"fill":{"color":GREY_L}},{"fill":{"none":True}}]})
+    ch.set_rotation(270); ch.set_hole_size(62); ch.set_legend({"none":True})
+    ch.set_title({"name":title,"name_font":{"size":9.5,"bold":True,"color":BLUE_D}})
+    ch.set_chartarea({"border":{"none":True},"fill":{"none":True}})
+    return ch
 
 # ---- Leadership ----------------------------------------------------------
 def build_leadership(e):

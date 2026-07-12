@@ -37,10 +37,16 @@ and Help** sheets.
   legend / column headers), structured Tables, dropdown validation from **Master Data**,
   and **auto-calculated** columns (Attendance %, Close-out %, Reach %, Compliance %,
   Incident Ageing, CA Timeliness) written as formulas.
-- **Executive Dashboard** — TRIR, LTIFR, Total Incidents, Near Miss, Observation/Training/
-  CA closure %, Lost Days; a **Heinrich incident pyramid**, 12-month trend, leading-indicator
-  activity volumes, and a **RAG (🟢🟡🔴) compliance scorecard** that compares actuals to the
-  targets on the Settings sheet. Two global filters (Month, Department) drive everything.
+- **Executive Dashboard** — RCPL-card style with a **period-on-period variance engine**:
+  pick a **Period** (any month → vs previous month, or Q1–Q4 → vs previous quarter) and a
+  Department; every KPI card shows the current value, the prior-period value and a
+  **▲/▼ Δ% vs prior** indicator that is **polarity-coloured** (for lagging metrics a drop is
+  green, for leading metrics a rise is green). Cards are split into two clearly-labelled
+  bands — **🟥 LAGGING** (TRIR, LTIFR, incidents, recordable, LTI+fatality, near miss, first
+  aid, lost days, disciplinary, open NCs) and **🟩 LEADING** (trainings, training compliance,
+  observations, obs closure, toolbox, inspections, audits, PTW compliance, drills, CA
+  closure). Plus leading-vs-lagging bar pair, a **Heinrich incident pyramid**, 12-month
+  trend, four compliance **gauges** and a **RAG (🟢🟡🔴) scorecard** vs the Settings targets.
 - **Leadership Review** — condensed corporate scorecard + incident severity mix + trends.
 - **24 per-register dashboards** — each with KPI tiles (total, closure %, key metric),
   monthly-volume, category-breakdown and status-distribution charts, all `COUNTIFS`-driven.
