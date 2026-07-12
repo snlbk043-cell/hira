@@ -1,0 +1,30 @@
+export type Summary = {
+  year: number;
+  department: string;
+  TRIR: number;
+  LTIFR: number;
+  trirMonthly: number[];
+  ltifrMonthly: number[];
+  totalIncidents: number;
+  recordableTotal: number;
+  lostDaysTotal: number;
+  classificationCounts: Record<string, number>;
+  monthlyIncidents: number[];
+  rootCauseCounts: Record<string, number>;
+  bodyPartCounts: Record<string, number>;
+  deptScore: Record<string, number>;
+  riskRatingByDept: Record<string, Record<string, number>>;
+  training: { pct: number; total: number; statusCounts: Record<string, number> };
+  obs: { pct: number; total: number; statusCounts: Record<string, number> };
+  ca: { pct: number; total: number; statusCounts: Record<string, number> };
+  walk: { pct: number; total: number; statusCounts: Record<string, number> };
+  ptw: { pct: number; total: number };
+  jsa: { pct: number; total: number };
+  leadingMonthly: number[];
+  laggingMonthly: number[];
+  backlog: Record<string, number>;
+  settings: Record<string, number>;
+  manhoursByMonth: number[];
+};
+
+export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
