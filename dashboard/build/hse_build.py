@@ -596,6 +596,33 @@ class EHS:
         series("nc_total", rcount("nc"))
         series("nc_closed", rstatus("nc","Status","Closed"))
 
+        # ---- monthly series feeding each tracker's bespoke "signature" chart ----
+        def ravg(key, colname):
+            s=spec_of(key)
+            dep=(",%s,dCrit"%rng(s,"Department")) if has(s,"Department") else ""
+            return lambda mn:'IFERROR(AVERAGEIFS(%s,%s,"%s"%s),0)'%(rng(s,colname),rng(s,"Month"),mn,dep)
+        series("hseobs_safe", lambda mn:'COUNTIFS(%s,"Safe Act",%s,"%s",%s,dCrit)+COUNTIFS(%s,"Safe Condition",%s,"%s",%s,dCrit)'%(
+            rng(spec_of("hseobs"),"Observation Type"),rng(spec_of("hseobs"),"Month"),mn,rng(spec_of("hseobs"),"Department"),
+            rng(spec_of("hseobs"),"Observation Type"),rng(spec_of("hseobs"),"Month"),mn,rng(spec_of("hseobs"),"Department")))
+        series("hseobs_atrisk", lambda mn:'COUNTIFS(%s,"Unsafe Act",%s,"%s",%s,dCrit)+COUNTIFS(%s,"Unsafe Condition",%s,"%s",%s,dCrit)'%(
+            rng(spec_of("hseobs"),"Observation Type"),rng(spec_of("hseobs"),"Month"),mn,rng(spec_of("hseobs"),"Department"),
+            rng(spec_of("hseobs"),"Observation Type"),rng(spec_of("hseobs"),"Month"),mn,rng(spec_of("hseobs"),"Department")))
+        series("drill_resp_actual", ravg("drills","Actual Response (min)"))
+        series("drill_resp_target", ravg("drills","Target Response (min)"))
+        series("iaudit_major", rsum("iaudit","Major NC"))
+        series("eaudit_major", rsum("eaudit","Major NC"))
+        series("mgmtreview_decisions", rsum("mgmtreview","Decisions Made"))
+        series("mgmtreview_actions", rsum("mgmtreview","Actions Assigned"))
+        series("swa_downtime", rsum("swa","Downtime (min)"))
+        series("training_hours", rsum("training","Duration (hrs)"))
+        series("wpinsp_nc", rsum("wpinsp","Non-Conformances"))
+        series("ca_ontime", rvalcount("ca","Timeliness","On-Time"))
+        series("ca_delayed", rvalcount("ca","Timeliness","Delayed"))
+        series("jsa_critical", rvalcount("jsa","Risk Level","Critical"))
+        series("jsa_high", rvalcount("jsa","Risk Level","High"))
+        series("jsa_medium", rvalcount("jsa","Risk Level","Medium"))
+        series("jsa_low", rvalcount("jsa","Risk Level","Low"))
+
         # monthly TRIR/LTIFR trend (direct per-month reference to recordable/ltifat columns)
         rc_col=scol_col["recordable"]; lf_col=scol_col["ltifat"]
         ws.write(hr-1,c0,"trir_m",F["th"])
@@ -606,6 +633,12 @@ class EHS:
         for i in range(12):
             ws.write_formula(hr+i,c0,"=IFERROR($%s$%d*LTIFRmult/Settings!$C$%d,0)"%(lf_col,hr+1+i,self._mh_first+i),F["td"],0)
         scol["ltifr_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
+        # alcohol positive-rate % trend (direct per-month reference to alcohol_positive/alcohol_total)
+        ap_col=scol_col["alcohol_positive"]; at_col=scol_col["alcohol_total"]
+        ws.write(hr-1,c0,"alcohol_rate_m",F["th"])
+        for i in range(12):
+            ws.write_formula(hr+i,c0,"=IFERROR($%s$%d/$%s$%d*100,0)"%(ap_col,hr+1+i,at_col,hr+1+i),F["tdp"],0)
+        scol["alcohol_rate_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
         self.MSER=scol   # expose monthly-series ranges for direct trend-chart reuse
 
         MH="Manhours"; nmc="SUM(%s)"%curmask; nmp="SUM(%s)"%prmask
@@ -933,6 +966,110 @@ class EHS:
         self.RR["_radar_val"]="Calculations!$%s$%d:$%s$%d"%(rv,rd0+1,rv,rd0+len(radar))
         self.RR["_radar_tgt"]="Calculations!$%s$%d:$%s$%d"%(rt,rd0+1,rt,rd0+len(radar))
         r=rd0+len(radar)+2
+
+        # ---- per-tracker "signature chart" aggregates (Register-Month + Department filtered) ----
+        # Bulletin reach % by Distribution Method
+        b0=r; sb=spec_of("bulletins")
+        ws.write(b0-1,c0,"Distribution Method",F["th"]); ws.write(b0-1,c0+1,"Avg Reach %",F["th"])
+        for i,v in enumerate(HD.POOLS["Distribution Method"]):
+            ws.write(b0+i,c0,v,F["tdl"])
+            ws.write_formula(b0+i,c0+1,'=IFERROR(AVERAGEIFS(%s,%s,"%s",%s,mCrit),0)'%(
+                rng(sb,"Reach %"),rng(sb,"Distribution Method"),v,rng(sb,"Month")),F["tdp"],0)
+        self.RR["_bulletin_method_lbl"]=self._a1(b0,c0,b0+3); self.RR["_bulletin_method_val"]=self._a1(b0,c0+1,b0+3)
+        r=b0+6
+
+        # PTW compliance % by Permit Type
+        p0=r; sp_=spec_of("ptwaudit")
+        ws.write(p0-1,c0,"Permit Type",F["th"]); ws.write(p0-1,c0+1,"Avg Compliance %",F["th"])
+        for i,v in enumerate(HD.POOLS["Permit Type Audited"]):
+            ws.write(p0+i,c0,v,F["tdl"])
+            ws.write_formula(p0+i,c0+1,'=IFERROR(AVERAGEIFS(%s,%s,"%s",%s,mCrit),0)'%(
+                rng(sp_,"Compliance %"),rng(sp_,"Permit Type Audited"),v,rng(sp_,"Month")),F["tdp"],0)
+        self.RR["_ptw_type_lbl"]=self._a1(p0,c0,p0+6); self.RR["_ptw_type_val"]=self._a1(p0,c0+1,p0+6)
+        r=p0+9
+
+        # Training pass rate % by Training Type
+        t0=r; st=spec_of("training")
+        ws.write(t0-1,c0,"Training Type",F["th"]); ws.write(t0-1,c0+1,"Pass Rate %",F["th"])
+        for i,v in enumerate(HD.POOLS["Training Type"]):
+            ws.write(t0+i,c0,v,F["tdl"])
+            passc='COUNTIFS(%s,"%s",%s,"Pass",%s,mCrit)'%(rng(st,"Training Type"),v,rng(st,"Assessment Result"),rng(st,"Month"))
+            totc='COUNTIFS(%s,"%s",%s,mCrit)'%(rng(st,"Training Type"),v,rng(st,"Month"))
+            ws.write_formula(t0+i,c0+1,'=IFERROR(%s/%s*100,0)'%(passc,totc),F["tdp"],0)
+        self.RR["_train_type_lbl"]=self._a1(t0,c0,t0+5); self.RR["_train_type_val"]=self._a1(t0,c0+1,t0+5)
+        r=t0+8
+
+        # Stop Work: avg Downtime by Severity
+        s0=r; ssw=spec_of("swa")
+        ws.write(s0-1,c0,"Severity",F["th"]); ws.write(s0-1,c0+1,"Avg Downtime (min)",F["th"])
+        for i,v in enumerate(HD.SEVERITY):
+            ws.write(s0+i,c0,v,F["tdl"])
+            ws.write_formula(s0+i,c0+1,'=IFERROR(AVERAGEIFS(%s,%s,"%s",%s,mCrit),0)'%(
+                rng(ssw,"Downtime (min)"),rng(ssw,"Severity"),v,rng(ssw,"Month")),F["tdn"],0)
+        self.RR["_swa_severity_lbl"]=self._a1(s0,c0,s0+3); self.RR["_swa_severity_val"]=self._a1(s0,c0+1,s0+3)
+        r=s0+6
+
+        # NC Management: Root Cause Pareto (now a real cause pool, fixed in hse_data.py)
+        r=self._top10_block(ws,r,c0,"NC Root Cause",spec_of("nc"),"Root Cause / CAPA",HD.ROOT_CAUSES,"_ncroot")
+        # Workplace Inspections: NC-heavy Areas (top 8 by Non-Conformances sum, not just count)
+        wa0=r; swp=spec_of("wpinsp")
+        ws.write(wa0-1,c0,"Inspection Area",F["th"]); ws.write(wa0-1,c0+1,"Non-Conformances",F["th"])
+        ws.write(wa0-1,c0+2,"Adj",F["th"]); ws.write(wa0-1,c0+3,"Sorted Area",F["th"]); ws.write(wa0-1,c0+4,"Sorted NCs",F["th"])
+        areas8=HD.TOPICS[:8]
+        for i,a in enumerate(areas8):
+            ws.write(wa0+i,c0,a,F["tdl"])
+            ws.write_formula(wa0+i,c0+1,'=SUMIFS(%s,%s,"%s",%s,mCrit,%s,dCrit)'%(
+                rng(swp,"Non-Conformances"),rng(swp,"Inspection Area/Item"),a,rng(swp,"Month"),rng(swp,"Department")),F["tdn"],0)
+            ws.write_formula(wa0+i,c0+2,"=%s+ROW()/100000"%xl_rowcol_to_cell(wa0+i,c0+1),self._numfmt("0.00000"),0)
+        waf=xl_rowcol_to_cell(wa0,c0+2,True,True); wal=xl_rowcol_to_cell(wa0+7,c0+2,True,True)
+        wnf=xl_rowcol_to_cell(wa0,c0,True,True); wnl=xl_rowcol_to_cell(wa0+7,c0,True,True)
+        for i in range(8):
+            rr=wa0+i; large="LARGE(%s:%s,%d)"%(waf,wal,i+1)
+            ws.write_formula(rr,c0+3,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(wnf,wnl,large,waf,wal),F["tdl"],0)
+            ws.write_formula(rr,c0+4,"=INT(%s)"%large,F["tdn"],0)
+        self.RR["_wpinsp_area_lbl"]=self._a1(wa0,c0+3,wa0+7); self.RR["_wpinsp_area_val"]=self._a1(wa0,c0+4,wa0+7)
+        r=wa0+10
+
+        # Incident: ageing buckets (open incidents only) + Person Type mix
+        a0=r; sinc=spec_of("incident")
+        ws.write(a0-1,c0,"Ageing Bucket (open)",F["th"]); ws.write(a0-1,c0+1,"Count",F["th"])
+        buckets=[("0-7 days",0,7),("8-15 days",8,15),("16-30 days",16,30),("31+ days",31,None)]
+        AG=rng(sinc,"Ageing (Days)"); IST=rng(sinc,"Status"); IMn=rng(sinc,"Month"); IDp=rng(sinc,"Department")
+        for i,(lbl,lo,hi) in enumerate(buckets):
+            ws.write(a0+i,c0,lbl,F["tdl"])
+            if hi is None:
+                f='COUNTIFS(%s,"Open",%s,">=%d",%s,mCrit,%s,dCrit)'%(IST,AG,lo,IMn,IDp)
+            else:
+                f='COUNTIFS(%s,"Open",%s,">=%d",%s,"<=%d",%s,mCrit,%s,dCrit)'%(IST,AG,lo,AG,hi,IMn,IDp)
+            ws.write_formula(a0+i,c0+1,"="+f,F["tdn"],0)
+        self.RR["_incident_aging_lbl"]=self._a1(a0,c0,a0+3); self.RR["_incident_aging_val"]=self._a1(a0,c0+1,a0+3)
+        r=a0+6
+        pt0=r
+        ws.write(pt0-1,c0,"Person Type",F["th"]); ws.write(pt0-1,c0+1,"Count",F["th"])
+        for i,v in enumerate(HD.POOLS["Person Type"]):
+            ws.write(pt0+i,c0,v,F["tdl"])
+            ws.write_formula(pt0+i,c0+1,'=COUNTIFS(%s,"%s",%s,mCrit,%s,dCrit)'%(
+                rng(sinc,"Person Type"),v,IMn,IDp),F["tdn"],0)
+        self.RR["_incident_persontype_lbl"]=self._a1(pt0,c0,pt0+3); self.RR["_incident_persontype_val"]=self._a1(pt0,c0+1,pt0+3)
+        r=pt0+6
+
+        # Toolbox: Topic x Department heat-map
+        tb0=r; stb=spec_of("toolbox")
+        topics=HD.TOPICS[:8]; topdepts2=HD.DEPARTMENTS[:6]
+        ws.write(tb0-1,c0,"Topic \\ Dept",F["th"])
+        for j,d in enumerate(topdepts2): ws.write(tb0-1,c0+1+j,d[:8],F["th"])
+        for i,tp in enumerate(topics):
+            ws.write(tb0+i,c0,tp,F["tdl"])
+            for j,d in enumerate(topdepts2):
+                ws.write_formula(tb0+i,c0+1+j,'=COUNTIFS(%s,"%s",%s,"%s",%s,mCrit)'%(
+                    rng(stb,"Topic"),tp,rng(stb,"Department"),d,rng(stb,"Month")),F["heat"],0)
+        tfirst=xl_rowcol_to_cell(tb0,c0+1); tlast=xl_rowcol_to_cell(tb0+len(topics)-1,c0+len(topdepts2))
+        ws.conditional_format("%s:%s"%(tfirst,tlast),{"type":"3_color_scale",
+            "min_color":WHITE,"mid_color":BLUE_L,"max_color":BLUE_D})
+        self.RR["_toolbox_heat_range"]="Calculations!%s:%s"%(tfirst,tlast)
+        self.RR["_toolbox_heat_meta"]={"top":tb0,"col0":c0,"nrows":len(topics),"ncols":len(topdepts2)}
+        r=tb0+len(topics)+2
+
         return r
 
     def _top10_block(self, ws, r0, c0, title, spec, field, pool, tag):

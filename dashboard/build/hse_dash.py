@@ -426,22 +426,20 @@ def build_register_dash(e, spec):
         tile(e,ws,rr,cc,lbl,"="+cellref,kind,["blue","green","amber","red"][i%4],w=4)
     row=row+((len(kpis)-1)//4+1)*6
 
-    # Monthly Volume + Primary Category Breakdown
-    ws.merge_range(row,1,row,18,"MONTHLY VOLUME & CATEGORY BREAKDOWN",F["section"]); row+=1
-    charts=[]
-    charts.append(e.col_chart(RR["month_lbl"],[("Volume",RR["month_val"],BLUE_M)],"Monthly Volume"))
-    if "cat_val" in RR:
-        charts.append(e.bar_chart(RR["cat_lbl"],RR["cat_val"],"Breakdown by %s"%spec.get("cat"),GREEN))
-    if "cat2_val" in RR:
-        charts.append(e.dough(RR["cat2_lbl"],RR["cat2_val"],"%s Distribution"%spec.get("cat2"),
-            [BLUE_M,GREEN,AMBER,RED,GREY_M,"#8B5CF6","#EAB308","#0EA5E9"]))
-    elif "st_val" in RR:
-        charts.append(e.dough(RR["st_lbl"],RR["st_val"],"Status Distribution",
-            [AMBER,BLUE_M,GREEN,RED,GREY_M,"#8B5CF6"]))
+    # Monthly Volume (kept - always a useful activity view) + this tracker's SIGNATURE analysis
+    ws.merge_range(row,1,row,18,"MONTHLY VOLUME & SIGNATURE ANALYSIS",F["section"]); row+=1
+    charts=[e.col_chart(RR["month_lbl"],[("Volume",RR["month_val"],BLUE_M)],"Monthly Volume")]
+    charts.extend(_signature_charts(e, spec, RR))
     cols=[1,7,13]
+    heat_placed=False
     for i,ch in enumerate(charts[:3]):
+        if ch=="TOOLBOX_HEAT":
+            heat_placed=True; continue
         place_chart(e,ws,row,cols[i],ch,486,290)
     row+=16
+    if spec["key"]=="toolbox" and "_toolbox_heat_meta" in e.RR:
+        ws.merge_range(row,1,row,18,"TOPIC × DEPARTMENT COVERAGE  ·  darker = more sessions delivered",F["section"]); row+=1
+        row=_mirror_heat(e, ws, row, e.RR["_toolbox_heat_meta"], [BLUE_M,GREEN,AMBER,RED,GREY_M])
 
     # Department Performance + Status Distribution (if not already used above)
     ws.merge_range(row,1,row,18,"DEPARTMENT PERFORMANCE",F["section"]); row+=1
@@ -462,6 +460,131 @@ def build_register_dash(e, spec):
     ws.merge_range(row,1,row,18,"MONTHLY PERFORMANCE MATRIX",F["section"]); row+=1
     _matrix_table(e, ws, row, spec, RR)
     print_setup(ws, last_row=row+9, last_col=18)
+
+def _dual_line(e, cats, s1name, s1val, s1color, s2name, s2val, s2color, title):
+    ch=e.wb.add_chart({"type":"line"})
+    ch.add_series({"name":s1name,"categories":cats,"values":s1val,"line":{"color":s1color,"width":2.25},
+        "marker":{"type":"circle","size":5,"fill":{"color":s1color}}})
+    ch.add_series({"name":s2name,"categories":cats,"values":s2val,"line":{"color":s2color,"width":2.25,"dash_type":"dash"},
+        "marker":{"type":"diamond","size":5,"fill":{"color":s2color}}})
+    e._style(ch,title)
+    return ch
+
+def _signature_charts(e, spec, RR):
+    """The one or two tracker-specific 'signature' analysis charts that replace the generic
+    category/status block — chosen for what's actually measurable & meaningful per tracker."""
+    key=spec["key"]; MS=e.MSER; months=_months(e)
+    R=e.RR
+    if key=="toolbox":
+        out=["TOOLBOX_HEAT"]
+        if "cat2_val" in RR:
+            out.append(e.dough(RR["cat2_lbl"],RR["cat2_val"],"Effectiveness Rating",
+                [GREEN,BLUE_M,AMBER,RED,GREY_M]))
+        return out
+    if key=="jsa":
+        c1=e.col_chart(months,[("Critical",MS["jsa_critical"],RED),("High",MS["jsa_high"],AMBER),
+            ("Medium",MS["jsa_medium"],BLUE_M),("Low",MS["jsa_low"],GREEN)],"Risk Level Mix Trend",stacked=True)
+        c2=e.bar_chart(RR["st_lbl"],RR["st_val"],"Approval Status",BLUE_M) if "st_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key=="training":
+        area=e.wb.add_chart({"type":"line","subtype":"stacked"})
+        area.add_series({"name":"Cumulative Hours","categories":months,"values":MS["training_hours"],
+            "line":{"color":BLUE_M,"width":2.25},"fill":{"color":BLUE_L}})
+        e._style(area,"Monthly Training Hours"); area.set_legend({"none":True})
+        c2=e.bar_chart(R["_train_type_lbl"],R["_train_type_val"],"Pass Rate % by Training Type",GREEN)
+        return [area,c2]
+    if key=="hseobs":
+        c1=_dual_line(e,months,"Safe",MS["hseobs_safe"],GREEN,"At-Risk",MS["hseobs_atrisk"],RED,
+            "Safe vs At-Risk Observations (BBS)")
+        c2=e.dough(RR["cat2_lbl"],RR["cat2_val"],"Category Mix",[BLUE_M,GREEN,AMBER,RED,GREY_M,"#8B5CF6"]) if "cat2_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key=="wpinsp":
+        c1=e.bar_chart(R["_wpinsp_area_lbl"],R["_wpinsp_area_val"],"Non-Conformances by Area",RED)
+        c2=e.col_chart(months,[("NCs",MS["wpinsp_nc"],AMBER)],"Non-Conformance Trend")
+        return [c1,c2]
+    if key=="eqinsp":
+        return [e.col_chart(months,[("Critical Findings",MS["eqinsp_critical"],RED)],"Critical Findings Trend")]
+    if key=="walk":
+        return [e.line_chart(months,MS["walk_total"],"Walkthrough Frequency Trend",BLUE_M)]
+    if key=="meetings":
+        return [_dual_line(e,months,"Raised",MS["meetings_raised"],AMBER,"Closed",MS["meetings_closed"],GREEN,
+            "Action Items: Raised vs Closed")]
+    if key=="bulletins":
+        c1=e.bar_chart(R["_bulletin_method_lbl"],R["_bulletin_method_val"],"Reach % by Distribution Method",BLUE_M)
+        c2=e.dough(RR["cat_lbl"],RR["cat_val"],"Bulletin Type Mix",[BLUE_M,GREEN,AMBER,RED,GREY_M,"#8B5CF6"]) if "cat_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key=="drills":
+        c1=_dual_line(e,months,"Actual (min)",MS["drill_resp_actual"],RED,"Target (min)",MS["drill_resp_target"],BLUE_M,
+            "Emergency Response Time: Actual vs Target")
+        c2=e.bar_chart(RR["cat_lbl"],RR["cat_val"],"Drill Type Coverage",GREEN) if "cat_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key in ("iaudit","eaudit"):
+        own_series = MS["iaudit_major"] if key=="iaudit" else MS["eaudit_major"]
+        c1=e.col_chart(months,[("Major NC",own_series,RED)],"Major NC Trend")
+        c2=_dual_line(e,months,"Internal",MS["iaudit_major"],BLUE_M,"External",MS["eaudit_major"],ACCENT,
+            "Internal vs External Major NC Rate")
+        return [c1,c2]
+    if key=="mgmtvisit":
+        return [e.bar_chart(RR["dept_lbl"],RR["dept_val"],"Visits by Department (leadership equity)",BLUE_M)]
+    if key=="mgmtreview":
+        return [_dual_line(e,months,"Decisions Made",MS["mgmtreview_decisions"],BLUE_M,
+            "Actions Assigned",MS["mgmtreview_actions"],AMBER,"Decisions vs Actions Assigned")]
+    if key=="disc":
+        c1=e.bar_chart(RR["cat_lbl"],RR["cat_val"],"Violation Type (Pareto)",RED)
+        c2=e.dough(RR["cat2_lbl"],RR["cat2_val"],"Offense Level Mix",[GREEN,AMBER,RED]) if "cat2_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key=="awards":
+        c1=e.bar_chart(RR["dept_lbl"],RR["dept_val"],"Recognition by Department",GREEN)
+        c2=e.dough(RR["cat_lbl"],RR["cat_val"],"Award Category Mix",[BLUE_M,GREEN,AMBER,RED,GREY_M,"#8B5CF6"]) if "cat_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key=="swa":
+        c1=e.col_chart(months,[("Downtime (min)",MS["swa_downtime"],RED)],"Stop-Work Downtime Trend")
+        c2=e.bar_chart(R["_swa_severity_lbl"],R["_swa_severity_val"],"Avg Downtime by Severity",AMBER)
+        return [c1,c2]
+    if key=="alcohol":
+        return [e.line_chart(months,MS["alcohol_rate_m"],"Positive Test Rate Trend",RED)]
+    if key=="ptwaudit":
+        return [e.bar_chart(R["_ptw_type_lbl"],R["_ptw_type_val"],"Compliance % by Permit Type",BLUE_M)]
+    if key=="ca":
+        c1=e.col_chart(months,[("On-Time",MS["ca_ontime"],GREEN),("Delayed",MS["ca_delayed"],RED)],
+            "On-Time vs Delayed Trend",stacked=True)
+        c2=e.bar_chart(RR["cat_lbl"],RR["cat_val"],"CAPA Source (Pareto)",BLUE_M) if "cat_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key=="nc":
+        c1=e.bar_chart(R["_ncroot_lbl"],R["_ncroot_val"],"Root Cause (Pareto)",RED)
+        c2=e.dough(RR["cat_lbl"],RR["cat_val"],"Severity Mix",[RED,AMBER,BLUE_M,GREEN]) if "cat_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    if key in ("unsafeact","unsafecond"):
+        other="unsafecond" if key=="unsafeact" else "unsafeact"
+        c1=_dual_line(e,months,"Unsafe Acts",e.RR["unsafeact"]["month_val"],AMBER,
+            "Unsafe Conditions",e.RR["unsafecond"]["month_val"],BLUE_M,"Unsafe Act vs Condition Trend")
+        toptag = "_topact" if key=="unsafeact" else "_topcond"
+        c2=e.bar_chart(R[toptag+"_lbl"],R[toptag+"_val"],"Top 10 Types",AMBER if key=="unsafeact" else BLUE_M)
+        return [c1,c2]
+    if key=="incident":
+        c1=e.bar_chart(R["_incident_aging_lbl"],R["_incident_aging_val"],"Open Incident Ageing",AMBER)
+        c2=e.dough(R["_incident_persontype_lbl"],R["_incident_persontype_val"],"Person Type Mix",
+            [BLUE_M,GREEN,AMBER,RED])
+        return [c1,c2]
+    # fallback for anything not itemised above (shouldn't hit, all 24 covered)
+    out=[]
+    if "cat_val" in RR: out.append(e.bar_chart(RR["cat_lbl"],RR["cat_val"],"Breakdown by %s"%spec.get("cat"),GREEN))
+    if "st_val" in RR: out.append(e.dough(RR["st_lbl"],RR["st_val"],"Status Distribution",[AMBER,BLUE_M,GREEN,RED]))
+    return out
+
+def _mirror_heat(e, ws, row, meta, colors):
+    """Mirror a heat-map block from Calculations onto the dashboard, live, with matching
+    3-colour-scale conditional formatting (so it's actually visible, not just a pointer note)."""
+    F=e.F; top=meta["top"]; col0=meta["col0"]; nrows=meta["nrows"]; ncols=meta["ncols"]
+    for j in range(ncols+1):
+        ws.write_formula(row,1+j,"=Calculations!%s"%xl_rowcol_to_cell(top-1,col0+j,True,True),F["th"])
+    for i in range(nrows):
+        for j in range(ncols+1):
+            fmt = F["tdl"] if j==0 else F["heat"]
+            ws.write_formula(row+1+i,1+j,"=Calculations!%s"%xl_rowcol_to_cell(top+i,col0+j,True,True),fmt,0)
+    ws.conditional_format(row+1,2,row+nrows,1+ncols,{"type":"3_color_scale",
+        "min_color":WHITE,"mid_color":BLUE_L,"max_color":BLUE_D})
+    return row+nrows+3
 
 def _dept_table(e, ws, row, RR):
     """Live Department Performance table (Department | Count | 2 metrics), with a data bar

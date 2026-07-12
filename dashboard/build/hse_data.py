@@ -240,6 +240,8 @@ def gen_value(header, d, rownum, code, dept, key=None):
         return random.choice(UNSAFE_ACT_TYPES)
     if h == "Description" and key == "unsafecond":
         return random.choice(UNSAFE_COND_TYPES)
+    if h == "Root Cause / CAPA" and key == "nc":
+        return random.choice(ROOT_CAUSES)
     if h in ("Date","Date Raised","Date Issued"): return d
     if h == "Month": return MONTHS[d.month-1]
     if h == "Week": return "W%d" % (((d.day-1)//7)+1)

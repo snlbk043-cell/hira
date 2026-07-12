@@ -32,6 +32,46 @@ and Help** sheets.
 | **Registers (24)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident |
 | **Engine & config** | `Calculations`, `Master Data`, `Settings`, `Help` |
 
+## Round 6: every tracker dashboard rebuilt with bespoke, tracker-specific analysis
+The 24 tracker dashboards previously shared one generic template (Monthly Volume + Category
+breakdown + Secondary distribution) regardless of what the tracker actually measured. Each
+one now gets its own "signature" chart(s) chosen for what's genuinely measurable there:
+- **Toolbox Talks** — Topic × Department coverage heat-map (mirrored live onto the dashboard,
+  not just a pointer note) + Effectiveness mix.
+- **JSA** — Risk Level mix trend (stacked area, is HIRA maturity rising?) + Approval funnel.
+- **Training** — Cumulative YTD training-hours trend + Pass Rate by Training Type.
+- **HSE Observations** — **Safe : At-Risk ratio trend** (the real BBS industry KPI, previously
+  missing entirely).
+- **Workplace Inspections** — Non-Conformances by Area (Pareto) + NC trend.
+- **Equipment Inspections** — Critical Findings trend. **Walkthroughs** — frequency trend.
+- **Safety Meetings** — Action Items Raised vs Closed trend (exposes a growing backlog, not
+  just a closure %).
+- **Safety Bulletins** — Reach % by Distribution Method (which channel actually works).
+- **Emergency Drills** — **Actual vs Target Response Time trend** (real existing data,
+  previously buried) + Drill Type coverage.
+- **Internal/External Audits** — Major NC trend + an Internal-vs-External Major-NC-rate
+  comparison chart on both.
+- **Management Visits** — Visits-by-Department (leadership-attention equity check).
+- **Management Reviews** — Decisions Made vs Actions Assigned trend (do decisions convert to
+  tracked action, or just talk?).
+- **Disciplinary Actions** — Violation Type Pareto + Offense Level mix (repeat-offense signal).
+- **Safety Awards** — Recognition by Department (is recognition concentrated unfairly?).
+- **Stop Work Authority** — Downtime trend + Avg Downtime by Severity.
+- **Alcohol Tests** — Positive-rate trend.
+- **PTW Audits** — Compliance % by Permit Type (exposes the weakest permit category).
+- **Corrective Actions** — On-Time vs Delayed trend (using the Timeliness field, previously
+  unused) + Source Pareto.
+- **NC Management** — Root-Cause Pareto (the "Root Cause / CAPA" field was generating random
+  topic text before this round — fixed to draw from a real root-cause pool).
+- **Unsafe Acts / Unsafe Conditions** — Unsafe-Act-vs-Condition ratio trend (is plant risk
+  more behavioural or environmental?) + Top-10 types on each.
+- **Incident** — Open-Incident Ageing buckets (0-7/8-15/16-30/31+ days, using the "Ageing
+  (Days)" field, previously never charted) + Person Type mix (Employee/Contractor/Visitor).
+
+All of this reuses the existing RAG-vs-target cards, sparklines, drill-down hyperlinks,
+Department slicer and Monthly Performance Matrix — this round is a content/analysis
+redesign of the chart layer, not a re-platform.
+
 ## Round 5: per-tracker slicers, real RAG-vs-target on every card, sparklines, radar upgrade,
 ## department data bars, Top Movers, print-ready layout
 - **Per-tracker slicers** — a "🎚 Add Tracker Slicers" button (Home) adds a real, Table-bound
