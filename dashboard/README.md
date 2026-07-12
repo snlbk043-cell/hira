@@ -32,6 +32,32 @@ and Help** sheets.
 | **Registers (24)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident |
 | **Engine & config** | `Calculations`, `Master Data`, `Settings`, `Help` |
 
+## Round 5: per-tracker slicers, real RAG-vs-target on every card, sparklines, radar upgrade,
+## department data bars, Top Movers, print-ready layout
+- **Per-tracker slicers** — a "🎚 Add Tracker Slicers" button (Home) adds a real, Table-bound
+  Department slicer to each of the 21 tracker dashboards whose register has a Department
+  column (Bulletins/Drills/Management Reviews don't), independent of the Executive filters.
+- **RAG-vs-target on every one of the ~49 KPI cards** — not just the variance arrow. Each
+  card's coloured strip is now a live 🟢🟡🔴 status against a real target: percentage KPIs
+  compare to explicit corporate targets on Settings (extended with PTW/close-out/attendance/
+  alcohol targets), and every count-based KPI (leading activity volumes, lagging incident
+  counts) compares against an auto-computed rolling 12-month baseline scaled to the selected
+  period — no arbitrary numbers invented, and every card is genuinely evaluated.
+- **Sparklines on every KPI card** (Executive + Leadership) — a 12-month inline trend line,
+  including on ratio/percentage metrics (which needed new monthly ratio series to support it).
+- **Radar chart upgrade** — now plots Actual vs Target as two overlaid rings across 8 axes
+  (was 6, value-only).
+- **Live Department Performance table** on every tracker dashboard (was chart-only before),
+  with a data bar on the Count column for instant ranking.
+- **Monthly Performance Matrix RAG colouring** — percentage rows get a green-amber-red colour
+  scale across their own 12 months so a missed month jumps out immediately.
+- **Top Movers panel** on Leadership Review — the 3 best-improving and 3 worst-regressing KPIs
+  this period, ranked by normalised %Δ×polarity so metrics of very different scale are
+  comparable (a lagging metric's improvement and a leading metric's improvement rank on the
+  same footing).
+- **Print-ready layout** — landscape, fit-to-1-page-wide, bounded print areas on every
+  dashboard sheet; registers repeat their 3-row header on each printed page.
+
 ## Round 4: native pivot tables, sheet protection, real monthly man-hours, board pack
 - **Native PivotTables + Slicers** — a "📊 Build Pivot Analysis" button on Home runs a VBA
   macro that creates three genuine, fully-interactive Excel PivotTables (Incident, Training,

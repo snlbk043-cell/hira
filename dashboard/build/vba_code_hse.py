@@ -1,4 +1,6 @@
 """VBA for the Integrated EHS Management System."""
+import hse_data as HD
+
 THISWORKBOOK = '''Attribute VB_Name = "ThisWorkbook"
 Attribute VB_Base = "0{00020819-0000-0000-C000-000000000046}"
 Attribute VB_GlobalNameSpace = False
@@ -184,8 +186,81 @@ Public Sub ExportDashboardPDF()
 End Sub
 '''
 
+
+def _build_slicer_module():
+    """Generate a Table-bound Department slicer for every tracker dashboard that has one,
+    from the same register list the workbook itself is built from (keeps sheet/table names
+    in lock-step with the Python generator instead of hand-typing 24 entries in VBA)."""
+    dash_names, reg_names, tbl_names = [], [], []
+    for spec in HD.REGISTERS:
+        if "Department" not in spec["headers"]:
+            continue
+        dash_names.append("Dash \xb7 " + spec["sheet"])
+        reg_names.append(spec["sheet"])
+        tbl_names.append("t_" + spec["key"])
+
+    def vba_arr(items):
+        return "Array(" + ", ".join('"%s"' % s.replace('"', '""') for s in items) + ")"
+
+    return '''Attribute VB_Name = "modSlicers"
+Option Explicit
+
+'==========================================================
+' PER-TRACKER SLICERS
+'   Adds a real, Table-bound Department slicer to every tracker
+'   dashboard (skips the couple of registers with no Department
+'   column). Safe to re-run: removes any prior slicer of the same
+'   name first. Sheets are briefly unprotected while the slicer is
+'   inserted, then re-protected exactly as ProtectAllSheets does.
+'==========================================================
+Public Sub BuildTrackerSlicers()
+    Dim dashNames As Variant, regNames As Variant, tblNames As Variant
+    Dim i As Long
+    Dim wsD As Worksheet
+    Dim tbl As ListObject
+    Dim sc As SlicerCache
+    Dim built As Long
+
+    dashNames = %s
+    regNames = %s
+    tblNames = %s
+
+    Application.ScreenUpdating = False
+    built = 0
+    For i = LBound(dashNames) To UBound(dashNames)
+        On Error Resume Next
+        Set wsD = Nothing
+        Set wsD = ThisWorkbook.Worksheets(CStr(dashNames(i)))
+        On Error GoTo 0
+        If Not wsD Is Nothing Then
+            On Error Resume Next
+            wsD.Unprotect Password:=""
+            ' remove a same-named slicer from a previous run so this is re-runnable
+            ActiveWorkbook.SlicerCaches("Slicer_" & CStr(tblNames(i)) & "_Department").Delete
+            Set tbl = Nothing
+            Set tbl = ThisWorkbook.Worksheets(CStr(regNames(i))).ListObjects(CStr(tblNames(i)))
+            If Not tbl Is Nothing Then
+                Set sc = ActiveWorkbook.SlicerCaches.Add2(tbl, "Department")
+                sc.Slicers.Add SlicerDestination:=wsD, Name:="Slicer_" & CStr(tblNames(i)) & "_Department", _
+                    Caption:="Department", Left:=910, Top:=55, Width:=135, Height:=190
+                built = built + 1
+            End If
+            wsD.Protect Password:="", DrawingObjects:=False, Contents:=True, Scenarios:=True, _
+                UserInterfaceOnly:=True, AllowFiltering:=True, AllowSorting:=True, AllowInsertingRows:=True
+            On Error GoTo 0
+        End If
+    Next i
+    Application.ScreenUpdating = True
+    MsgBox "Added " & built & " Department slicers to tracker dashboards (top-right of each). " & _
+           "Click a slicer button to filter that register live - independent of the Executive filters.", _
+           vbInformation, "Tracker Slicers Ready"
+End Sub
+''' % (vba_arr(dash_names), vba_arr(reg_names), vba_arr(tbl_names))
+
+
 def modules():
     return [
         {"name":"ThisWorkbook","type":"document","code":THISWORKBOOK},
         {"name":"modEHS","type":"standard","code":MOD},
+        {"name":"modSlicers","type":"standard","code":_build_slicer_module()},
     ]

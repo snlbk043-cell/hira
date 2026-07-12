@@ -215,6 +215,7 @@ class EHS:
                 colfmt = F["cell_in"]
             ws.set_column(i,i, max(9,min(24,len(h)+2)), colfmt)
         ws.freeze_panes(3,0); ws.set_zoom(90)
+        ws.repeat_rows(0,2); ws.set_landscape(); ws.fit_to_pages(1,0)
         ws.write_url(0,nc+1,"internal:'Home'!A1", F["reg_legend"], "Home")
         # data validation dropdowns
         self._validations(ws, spec)
@@ -290,7 +291,12 @@ class EHS:
         tg=[("Observation Closure Target",0.9,"Green if ≥ target","TgtObs"),
             ("Training Compliance Target",0.95,"","TgtTrain"),
             ("Corrective Action Closure Target",0.9,"","TgtCA"),
+            ("PTW Compliance Target",0.95,"","TgtPTW"),
+            ("Generic Close-out % Target",0.85,"Used by Meetings/Visits/Insp/Unsafe-Act/NC/JSA/Bulletin closure-type KPIs","TgtCloseout"),
+            ("Generic Attendance/Participation % Target",0.85,"Used by Toolbox/Drill/Mgmt-Review attendance-type KPIs","TgtAttendance"),
+            ("Alcohol Positive Rate Target (max acceptable)",0.05,"Green if actual ≤ target","TgtAlcoholPositive"),
             ("TRIR Target (max acceptable)",1.0,"Green if actual ≤ target","TgtTRIR"),
+            ("LTIFR Target (max acceptable)",2.0,"Green if actual ≤ target","TgtLTIFR"),
             ("RAG Amber band (fraction of target)",0.8,"Below this vs target = Red","AmberBand")]
         for lbl,val,note,name in tg:
             ws.write(r,1,lbl,F["set_lbl"]); ws.write_number(r,2,val,F["set_val"])
@@ -610,59 +616,60 @@ class EHS:
         heads=["KPI","Band","Cur","Prior","Delta%","Good"]
         for j,h in enumerate(heads): ws.write(kt,kc+j,h,F["th"])
         # (label, band, kind, polarity, kind_of_calc, args)
+        # 8th field = explicit Settings target name, or None -> auto rolling-average baseline
         KP=[
          # ---- LAGGING (reactive outcomes; lower is better) ----
-         ("TRIR","Lagging","dec",-1,"trir",None,None),
-         ("LTIFR","Lagging","dec",-1,"ltifr",None,None),
-         ("Total Incidents","Lagging","num",-1,"sum","totalinc","Incident"),
-         ("Recordable","Lagging","num",-1,"sum","recordable","Incident"),
-         ("LTI + Fatality","Lagging","num",-1,"sum","ltifat","Incident"),
-         ("Near Miss","Lagging","num",-1,"sum","nearmiss","Incident"),
-         ("First Aid","Lagging","num",-1,"sum","firstaid","Incident"),
-         ("Lost Days","Lagging","num",-1,"sum","lostdays","Incident"),
-         ("Disciplinary","Lagging","num",-1,"sum","disc","Disciplinary Actions"),
-         ("Open NCs","Lagging","num",-1,"sum","nc_open","NC Management"),
-         ("NC Closure","Lagging","pct",1,"ratio",("nc_closed","nc_total"),"NC Management"),
-         ("Alcohol Positive %","Lagging","pct",-1,"ratio",("alcohol_positive","alcohol_total"),"Alcohol Tests"),
+         ("TRIR","Lagging","dec",-1,"trir",None,None,"TgtTRIR"),
+         ("LTIFR","Lagging","dec",-1,"ltifr",None,None,"TgtLTIFR"),
+         ("Total Incidents","Lagging","num",-1,"sum","totalinc","Incident",None),
+         ("Recordable","Lagging","num",-1,"sum","recordable","Incident",None),
+         ("LTI + Fatality","Lagging","num",-1,"sum","ltifat","Incident",None),
+         ("Near Miss","Lagging","num",-1,"sum","nearmiss","Incident",None),
+         ("First Aid","Lagging","num",-1,"sum","firstaid","Incident",None),
+         ("Lost Days","Lagging","num",-1,"sum","lostdays","Incident",None),
+         ("Disciplinary","Lagging","num",-1,"sum","disc","Disciplinary Actions",None),
+         ("Open NCs","Lagging","num",-1,"sum","nc_open","NC Management",None),
+         ("NC Closure","Lagging","pct",1,"ratio",("nc_closed","nc_total"),"NC Management","TgtCloseout"),
+         ("Alcohol Positive %","Lagging","pct",-1,"ratio",("alcohol_positive","alcohol_total"),"Alcohol Tests","TgtAlcoholPositive"),
          # ---- LEADING (proactive activity; higher is better) ----
-         ("Toolbox Talks","Leading","num",1,"sum","toolbox","Toolbox Talks"),
-         ("Toolbox Avg Attendance","Leading","pct",1,"ratio",("toolbox_att_actual","toolbox_att_target"),"Toolbox Talks"),
-         ("JSA Assessments","Leading","num",1,"sum","jsa","JSA Risk Assessment"),
-         ("JSA % Approved","Leading","pct",1,"ratio",("jsa_approved","jsa"),"JSA Risk Assessment"),
-         ("Trainings","Leading","num",1,"sum","training_total","Training"),
-         ("Training Compliance","Leading","pct",1,"ratio",("train_completed","training_total"),"Training"),
-         ("HSE Observations","Leading","num",1,"sum","obs_total","HSE Observations"),
-         ("Obs Closure","Leading","pct",1,"ratio",("obs_closed","obs_total"),"HSE Observations"),
-         ("Workplace Inspections","Leading","num",1,"sum","wpinsp_total","Workplace Inspections"),
-         ("Workplace Insp. Closure","Leading","pct",1,"ratio",("wpinsp_closed","wpinsp_total"),"Workplace Inspections"),
-         ("Equipment Inspections","Leading","num",1,"sum","eqinsp_total","Equipment Inspections"),
-         ("Equipment Critical Findings","Leading","num",-1,"sum","eqinsp_critical","Equipment Inspections"),
-         ("Safety Walkthroughs","Leading","num",1,"sum","walk_total","Safety Walkthroughs"),
-         ("Safety Meetings","Leading","num",1,"sum","meetings","Safety Meetings"),
-         ("Meetings Close-out","Leading","pct",1,"ratio",("meetings_closed","meetings_raised"),"Safety Meetings"),
-         ("Safety Bulletins","Leading","num",1,"sum","bulletins_total","Safety Bulletins"),
-         ("Bulletin Reach","Leading","pct",1,"ratio",("bulletins_actual","bulletins_target"),"Safety Bulletins"),
-         ("Emergency Drills","Leading","num",1,"sum","drills","Emergency Drills"),
-         ("Drill Participation","Leading","pct",1,"ratio",("drills_actual","drills_target"),"Emergency Drills"),
-         ("Internal Audits","Leading","num",1,"sum","iaudit_total","Internal Audits"),
-         ("Internal Audit NCs","Leading","num",-1,"sum","iaudit_nc","Internal Audits"),
-         ("External Audits","Leading","num",1,"sum","eaudit_total","External Audits"),
-         ("External Audit NCs","Leading","num",-1,"sum","eaudit_nc","External Audits"),
-         ("Management Visits","Leading","num",1,"sum","mgmtvisit_total","Management Visits"),
-         ("Mgmt Visit Close-out","Leading","pct",1,"ratio",("mgmtvisit_closed","mgmtvisit_raised"),"Management Visits"),
-         ("Management Reviews","Leading","num",1,"sum","mgmtreview_total","Management Reviews"),
-         ("Mgmt Review Attendance","Leading","pct",1,"ratio",("mgmtreview_attended","mgmtreview_invited"),"Management Reviews"),
-         ("Safety Awards","Leading","num",1,"sum","awards_total","Safety Awards"),
-         ("Stop Work Authority","Leading","num",1,"sum","swa_total","Stop Work Authority"),
-         ("Alcohol Tests","Leading","num",1,"sum","alcohol_total","Alcohol Tests"),
-         ("PTW Audits","Leading","num",1,"sum","ptw_total","PTW Audits"),
-         ("PTW Compliance","Leading","pct",1,"ratio",("ptw_compliant","ptw_total"),"PTW Audits"),
-         ("Corrective Actions","Leading","num",1,"sum","ca_total","Corrective Actions"),
-         ("CA Closure","Leading","pct",1,"ratio",("ca_closed","ca_total"),"Corrective Actions"),
-         ("Unsafe Acts Reported","Leading","num",1,"sum","unsafeact_total","Unsafe Acts"),
-         ("Unsafe Act Closure","Leading","pct",1,"ratio",("unsafeact_closed","unsafeact_total"),"Unsafe Acts"),
-         ("Unsafe Conditions Reported","Leading","num",1,"sum","unsafecond_total","Unsafe Conditions"),
-         ("Unsafe Condition Closure","Leading","pct",1,"ratio",("unsafecond_closed","unsafecond_total"),"Unsafe Conditions"),
+         ("Toolbox Talks","Leading","num",1,"sum","toolbox","Toolbox Talks",None),
+         ("Toolbox Avg Attendance","Leading","pct",1,"ratio",("toolbox_att_actual","toolbox_att_target"),"Toolbox Talks","TgtAttendance"),
+         ("JSA Assessments","Leading","num",1,"sum","jsa","JSA Risk Assessment",None),
+         ("JSA % Approved","Leading","pct",1,"ratio",("jsa_approved","jsa"),"JSA Risk Assessment","TgtCloseout"),
+         ("Trainings","Leading","num",1,"sum","training_total","Training",None),
+         ("Training Compliance","Leading","pct",1,"ratio",("train_completed","training_total"),"Training","TgtTrain"),
+         ("HSE Observations","Leading","num",1,"sum","obs_total","HSE Observations",None),
+         ("Obs Closure","Leading","pct",1,"ratio",("obs_closed","obs_total"),"HSE Observations","TgtObs"),
+         ("Workplace Inspections","Leading","num",1,"sum","wpinsp_total","Workplace Inspections",None),
+         ("Workplace Insp. Closure","Leading","pct",1,"ratio",("wpinsp_closed","wpinsp_total"),"Workplace Inspections","TgtCloseout"),
+         ("Equipment Inspections","Leading","num",1,"sum","eqinsp_total","Equipment Inspections",None),
+         ("Equipment Critical Findings","Leading","num",-1,"sum","eqinsp_critical","Equipment Inspections",None),
+         ("Safety Walkthroughs","Leading","num",1,"sum","walk_total","Safety Walkthroughs",None),
+         ("Safety Meetings","Leading","num",1,"sum","meetings","Safety Meetings",None),
+         ("Meetings Close-out","Leading","pct",1,"ratio",("meetings_closed","meetings_raised"),"Safety Meetings","TgtCloseout"),
+         ("Safety Bulletins","Leading","num",1,"sum","bulletins_total","Safety Bulletins",None),
+         ("Bulletin Reach","Leading","pct",1,"ratio",("bulletins_actual","bulletins_target"),"Safety Bulletins","TgtCloseout"),
+         ("Emergency Drills","Leading","num",1,"sum","drills","Emergency Drills",None),
+         ("Drill Participation","Leading","pct",1,"ratio",("drills_actual","drills_target"),"Emergency Drills","TgtAttendance"),
+         ("Internal Audits","Leading","num",1,"sum","iaudit_total","Internal Audits",None),
+         ("Internal Audit NCs","Leading","num",-1,"sum","iaudit_nc","Internal Audits",None),
+         ("External Audits","Leading","num",1,"sum","eaudit_total","External Audits",None),
+         ("External Audit NCs","Leading","num",-1,"sum","eaudit_nc","External Audits",None),
+         ("Management Visits","Leading","num",1,"sum","mgmtvisit_total","Management Visits",None),
+         ("Mgmt Visit Close-out","Leading","pct",1,"ratio",("mgmtvisit_closed","mgmtvisit_raised"),"Management Visits","TgtCloseout"),
+         ("Management Reviews","Leading","num",1,"sum","mgmtreview_total","Management Reviews",None),
+         ("Mgmt Review Attendance","Leading","pct",1,"ratio",("mgmtreview_attended","mgmtreview_invited"),"Management Reviews","TgtAttendance"),
+         ("Safety Awards","Leading","num",1,"sum","awards_total","Safety Awards",None),
+         ("Stop Work Authority","Leading","num",1,"sum","swa_total","Stop Work Authority",None),
+         ("Alcohol Tests","Leading","num",1,"sum","alcohol_total","Alcohol Tests",None),
+         ("PTW Audits","Leading","num",1,"sum","ptw_total","PTW Audits",None),
+         ("PTW Compliance","Leading","pct",1,"ratio",("ptw_compliant","ptw_total"),"PTW Audits","TgtPTW"),
+         ("Corrective Actions","Leading","num",1,"sum","ca_total","Corrective Actions",None),
+         ("CA Closure","Leading","pct",1,"ratio",("ca_closed","ca_total"),"Corrective Actions","TgtCA"),
+         ("Unsafe Acts Reported","Leading","num",1,"sum","unsafeact_total","Unsafe Acts",None),
+         ("Unsafe Act Closure","Leading","pct",1,"ratio",("unsafeact_closed","unsafeact_total"),"Unsafe Acts","TgtCloseout"),
+         ("Unsafe Conditions Reported","Leading","num",1,"sum","unsafecond_total","Unsafe Conditions",None),
+         ("Unsafe Condition Closure","Leading","pct",1,"ratio",("unsafecond_closed","unsafecond_total"),"Unsafe Conditions","TgtCloseout"),
         ]
         def calc(kind,args,mask,nm):
             if kind=="sum": return sp(args,mask)
@@ -674,7 +681,7 @@ class EHS:
                "Near Miss":"NearMiss","Lost Days":"LostDays","LTI + Fatality":"LTIfat",
                "Training Compliance":"TrainCompliance","Obs Closure":"ObsClosure","CA Closure":"CAClosure",
                "PTW Compliance":"PTWauditComp"}
-        for i,(lbl,band,kind,pol,ck,args,drill) in enumerate(KP):
+        for i,(lbl,band,kind,pol,ck,args,drill,tgtname) in enumerate(KP):
             rr=kt+1+i
             ws.write(rr,kc,lbl,F["tdl"]); ws.write(rr,kc+1,band,F["td"])
             nf=F["td"] if kind=="dec" else (F["tdp"] if kind=="pct" else F["tdn"])
@@ -686,9 +693,25 @@ class EHS:
             goodcell="Calculations!$%s$%d"%(xl_col_to_name(kc+5),rr+1)
             gname="gd"+"".join(ch for ch in lbl if ch.isalnum())
             self.wb.define_name(gname,"="+goodcell)
+            # ---- Target (explicit corporate target, or auto rolling 12-month baseline) + RAG code ----
+            if tgtname:
+                tgtformula = tgtname if kind=="dec" else "%s*100"%tgtname
+            else:
+                tgtformula = "IFERROR(AVERAGE(%s)*SUM(%s),0)"%(scol[args],curmask)
+            ws.write_formula(rr,kc+6,"="+tgtformula,nf,0)
+            tgt="$%s$%d"%(xl_col_to_name(kc+6),rr+1)
+            if pol==1:
+                ragf='IF(%s>=%s,2,IF(%s>=%s*AmberBand,1,0))'%(cur,tgt,cur,tgt)
+            else:
+                ragf='IF(%s<=%s,2,IF(%s<=%s/AmberBand,1,0))'%(cur,tgt,cur,tgt)
+            ws.write_formula(rr,kc+7,"=IFERROR(%s,1)"%ragf,F["td"],0)
+            ragcell="Calculations!$%s$%d"%(xl_col_to_name(kc+7),rr+1)
+            ragname="rg"+"".join(ch for ch in lbl if ch.isalnum())
+            self.wb.define_name(ragname,"="+ragcell)
             EX[lbl]={"cur":"Calculations!%s"%cur,"prior":"Calculations!%s"%pri,
                      "delta":"Calculations!$%s$%d"%(xl_col_to_name(kc+4),rr+1),
-                     "good":goodcell,"goodname":gname,"band":band,"kind":kind,"drill":drill}
+                     "good":goodcell,"goodname":gname,"target":"Calculations!%s"%tgt,
+                     "rag":ragcell,"ragname":ragname,"band":band,"kind":kind,"drill":drill}
             if lbl in names: self.wb.define_name(names[lbl],"=Calculations!%s"%cur)
         self.EX=EX
         # ---- gauge helper cells (value/2, remainder, hidden 50) ----
@@ -711,7 +734,7 @@ class EHS:
         # pyramid (current period), leading & lagging bars, 12-month trend, RAG
         py=[("Fatality","fatality"),("Lost Time Injury","lti"),("Restricted Work","restricted"),
             ("Medical Treatment","medical"),("First Aid","firstaid"),("Near Miss","nearmiss")]
-        pr=kt; pc=kc+7
+        pr=kt; pc=kc+9   # +9 leaves room for the Target(+6)/RAGCode(+7) columns just added
         ws.write(pr-1,pc,"Incident Pyramid (period)",F["th"]); ws.write(pr-1,pc+1,"Count",F["th"])
         for i,(l,s) in enumerate(py):
             ws.write(pr+i,pc,l,F["tdl"]); ws.write_formula(pr+i,pc+1,"="+sp(s,curmask),F["tdn"],0)
@@ -761,8 +784,51 @@ class EHS:
                 ws.write_formula(rr,rc+3,'=IF(%s/100>=%s,"🟢 GREEN",IF(%s/100>=%s*AmberBand,"🟡 AMBER","🔴 RED"))'%(act,tgt,act,tgt),F["tdl"],0)
         self.RR["_rag"]={"first":rg,"last":rg+len(rag)-1,"c":rc}
 
+        # ---- sparkline source series for every KPI card (12-month trend) ----
+        sc0 = tc + 3
+        for i,(lbl,band,kind,pol,ck,args,drill,tgtname) in enumerate(KP):
+            if ck=="sum":
+                self.EX[lbl]["spark"] = scol[args]
+            elif ck=="trir":
+                self.EX[lbl]["spark"] = scol["trir_m"]
+            elif ck=="ltifr":
+                self.EX[lbl]["spark"] = scol["ltifr_m"]
+            elif ck=="ratio":
+                numcol=scol[args[0]]; dencol=scol[args[1]]
+                ws.write(hr-1,sc0,lbl[:24],F["th"])
+                for j in range(12):
+                    ncell="$%s$%d"%(numcol.split("$")[1],hr+1+j)
+                    dcell="$%s$%d"%(dencol.split("$")[1],hr+1+j)
+                    ws.write_formula(hr+j,sc0,"=IFERROR(%s/%s*100,0)"%(ncell,dcell),F["td"],0)
+                self.EX[lbl]["spark"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(sc0),hr+1,xl_col_to_name(sc0),hr+12)
+                sc0+=1
+
+        # ---- Top Movers ranking (delta% x polarity, normalised & comparable across all KPIs) ----
+        mv0=g0+8; mvc=kc
+        ws.write(mv0-1,mvc,"KPI",F["th"]); ws.write(mv0-1,mvc+1,"MoveScore",F["th"]); ws.write(mv0-1,mvc+2,"Adj",F["th"])
+        for i,(lbl,band,kind,pol,ck,args,drill,tgtname) in enumerate(KP):
+            rr=mv0+i
+            ws.write(rr,mvc,lbl,F["tdl"])
+            ws.write_formula(rr,mvc+1,"=%s*%d"%(self.EX[lbl]["delta"],pol),F["td"],0)
+            ws.write_formula(rr,mvc+2,"=%s+ROW()/100000"%xl_rowcol_to_cell(rr,mvc+1),self._numfmt("0.00000"),0)
+        af=xl_rowcol_to_cell(mv0,mvc+2,True,True); al=xl_rowcol_to_cell(mv0+len(KP)-1,mvc+2,True,True)
+        nf_=xl_rowcol_to_cell(mv0,mvc,True,True); nl=xl_rowcol_to_cell(mv0+len(KP)-1,mvc,True,True)
+        vf=xl_rowcol_to_cell(mv0,mvc+1,True,True); vl=xl_rowcol_to_cell(mv0+len(KP)-1,mvc+1,True,True)
+        best0=mv0+len(KP)+2; ws.write(best0-1,mvc,"Top 3 Improved",F["th"]); ws.write(best0-1,mvc+1,"Δ%",F["th"])
+        for k in range(3):
+            rr=best0+k; large="LARGE(%s:%s,%d)"%(af,al,k+1)
+            ws.write_formula(rr,mvc,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(nf_,nl,large,af,al),F["tdl"],0)
+            ws.write_formula(rr,mvc+1,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(vf,vl,large,af,al),self._numfmt('+0.0%;-0.0%'),0)
+        worst0=best0+4; ws.write(worst0-1,mvc,"Top 3 Regressed",F["th"]); ws.write(worst0-1,mvc+1,"Δ%",F["th"])
+        for k in range(3):
+            rr=worst0+k; small="SMALL(%s:%s,%d)"%(af,al,k+1)
+            ws.write_formula(rr,mvc,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(nf_,nl,small,af,al),F["tdl"],0)
+            ws.write_formula(rr,mvc+1,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(vf,vl,small,af,al),self._numfmt('+0.0%;-0.0%'),0)
+        self.RR["_movers_best"]={"lbl":self._a1(best0,mvc,best0+2),"val":self._a1(best0,mvc+1,best0+2)}
+        self.RR["_movers_worst"]={"lbl":self._a1(worst0,mvc,worst0+2),"val":self._a1(worst0,mvc+1,worst0+2)}
+
         # ---- next free row for chained calc blocks (max of all sub-block bottoms) ----
-        bottom = max(g0+6, kt+1+len(KP), rg+len(rag))
+        bottom = max(g0+6, kt+1+len(KP), rg+len(rag), worst0+2)
         return bottom + 3
 
     def _exec_analytics(self, ws, r0):
@@ -851,17 +917,21 @@ class EHS:
         r=self._top10_block(ws,r,c0,"Unsafe Condition",spec_of("unsafecond"),"Description",HD.UNSAFE_COND_TYPES,"_topcond")
         r=self._top10_block(ws,r,c0,"High-Risk Area",inc,"Area",HD.LOCATIONS,"_toparea")
 
-        # ---- Compliance Radar (period-based; reuses EX cur cells from _exec_engine) ----
+        # ---- Compliance Radar (period-based; Actual + Target rings from EX cur/target cells) ----
         rd0=r
-        ws.write(rd0-1,c0,"Radar Metric",F["th"]); ws.write(rd0-1,c0+1,"Value",F["th"])
-        radar=[("Training",EX["Training Compliance"]["cur"]),("PTW Audit",EX["PTW Compliance"]["cur"]),
-               ("HSE Observations",EX["Obs Closure"]["cur"]),("Workplace Insp.",EX["Workplace Insp. Closure"]["cur"]),
-               ("Corrective Actions",EX["CA Closure"]["cur"]),("NC Mgmt",EX["NC Closure"]["cur"])]
-        for i,(lbl,cellref) in enumerate(radar):
-            ws.write(rd0+i,c0,lbl,F["tdl"]); ws.write_formula(rd0+i,c0+1,"="+cellref,F["tdp"],0)
-        rl=xl_col_to_name(c0); rv=xl_col_to_name(c0+1)
+        ws.write(rd0-1,c0,"Radar Metric",F["th"]); ws.write(rd0-1,c0+1,"Actual",F["th"]); ws.write(rd0-1,c0+2,"Target",F["th"])
+        radar=[("Training",EX["Training Compliance"]),("PTW Audit",EX["PTW Compliance"]),
+               ("HSE Observations",EX["Obs Closure"]),("Workplace Insp.",EX["Workplace Insp. Closure"]),
+               ("Corrective Actions",EX["CA Closure"]),("NC Mgmt",EX["NC Closure"]),
+               ("Bulletin Reach",EX["Bulletin Reach"]),("Unsafe Act Closure",EX["Unsafe Act Closure"])]
+        for i,(lbl,exd) in enumerate(radar):
+            ws.write(rd0+i,c0,lbl,F["tdl"])
+            ws.write_formula(rd0+i,c0+1,"="+exd["cur"],F["tdp"],0)
+            ws.write_formula(rd0+i,c0+2,"="+exd["target"],F["tdp"],0)
+        rl=xl_col_to_name(c0); rv=xl_col_to_name(c0+1); rt=xl_col_to_name(c0+2)
         self.RR["_radar_lbl"]="Calculations!$%s$%d:$%s$%d"%(rl,rd0+1,rl,rd0+len(radar))
         self.RR["_radar_val"]="Calculations!$%s$%d:$%s$%d"%(rv,rd0+1,rv,rd0+len(radar))
+        self.RR["_radar_tgt"]="Calculations!$%s$%d:$%s$%d"%(rt,rd0+1,rt,rd0+len(radar))
         r=rd0+len(radar)+2
         return r
 
@@ -962,6 +1032,9 @@ class EHS:
                 ws.write_formula(rr,dc0+3,"="+met2[1](d),F["tdn"] if met2[2]=="num" else F["tdp"],0)
             out["dept_lbl"]=self._a1(sr+1,dc0,sr+len(depts))
             out["dept_val"]=self._a1(sr+1,dc0+1,sr+len(depts))
+            out["dept_top"]=sr; out["dept_dc0"]=dc0; out["dept_n"]=len(depts)
+            out["dept_met1_name"]=met1[0]; out["dept_met2_name"]=met2[0]
+            out["dept_met1_kind"]=met1[2]; out["dept_met2_kind"]=met2[2]
         # ---- Monthly Performance Matrix (col U onward: measure rows x Jan..Dec + YTD) ----
         mc0=20
         measures=self._matrix_measures(spec)
@@ -979,6 +1052,7 @@ class EHS:
             elif agg=="avg":
                 ws.write_formula(rr,mc0+13,"=IFERROR(AVERAGE(%s:%s),0)"%(first,last),F["tdp"] if kind=="pct" else F["tdn"],0)
         out["matrix_top"]=sr
+        out["matrix_kinds"]=[kind for (_,_,kind,_) in measures]
         return out
 
     def _dept_table_metrics(self, spec):

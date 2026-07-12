@@ -57,16 +57,29 @@ def tile(e, ws, r, c, label, valformula, kind, accent, w=3):
     ws.merge_range(r+4,c,r+4,c+w-1,"live · auto-calculated",ss)
 
 def vtile(e, ws, r, c, label, ex, kind, accent, w=3, drillsheet=None):
-    """RCPL-style KPI card with period variance (▲/▼ + Δ% vs prior, polarity-coloured),
-    optionally hyperlinked to a tracker dashboard for drill-down."""
+    """RCPL-style KPI card: strip colour = live RAG-vs-target status, number = current value,
+    corner = prior value, bottom row = period-on-period variance (▲/▼, polarity-coloured),
+    plus a 12-month sparkline. Optionally hyperlinked to a tracker dashboard for drill-down."""
     strip,tt,vv,ss=e.cardfmt(accent, kind)
-    ws.merge_range(r,c,r,c+w-1,"",strip); ws.set_row(r,4)
+    neutral=e._fmt(bg_color=GREY_M)
+    ws.merge_range(r,c,r,c+w-1,"",neutral); ws.set_row(r,4)
+    if "rag" in ex:
+        ws.conditional_format(r,c,r,c+w-1,{"type":"formula","criteria":"=%s=2"%ex["ragname"],
+            "format":e._fmt(bg_color=GREEN)})
+        ws.conditional_format(r,c,r,c+w-1,{"type":"formula","criteria":"=%s=1"%ex["ragname"],
+            "format":e._fmt(bg_color=AMBER)})
+        ws.conditional_format(r,c,r,c+w-1,{"type":"formula","criteria":"=%s=0"%ex["ragname"],
+            "format":e._fmt(bg_color=RED)})
     if drillsheet:
         ws.merge_range(r+1,c,r+1,c+w-1,"",tt)
         ws.write_url(r+1,c,"internal:'%s'!A1"%dash_name(spec_of(drillsheet)),tt,label.upper())
     else:
         ws.merge_range(r+1,c,r+1,c+w-1,label.upper(),tt)
-    ws.merge_range(r+2,c,r+3,c+w-1,"="+ex["cur"],vv)
+    ws.merge_range(r+2,c,r+3,c+w-2,"="+ex["cur"],vv)
+    if "spark" in ex:
+        ws.write_blank(r+3,c+w-1,"",vv)
+        ws.add_sparkline(r+3,c+w-1,{"range":ex["spark"],"type":"line",
+            "series_color":ACC[accent],"high_point":True,"low_point":True})
     vgood=e._fmt(font_name="Segoe UI",font_size=8,bold=True,font_color=GREEN,bg_color=WHITE,align="left",
         valign="vcenter",left=1,right=1,bottom=1,border_color="#E2E8F0")
     ws.merge_range(r+4,c,r+4,c+w-1,
@@ -77,6 +90,13 @@ def vtile(e, ws, r, c, label, ex, kind, accent, w=3, drillsheet=None):
     ws.conditional_format(r+4,c,r+4,c+w-1,{"type":"formula","criteria":"=%s<0"%ex["goodname"],
         "format":e._fmt(font_name="Segoe UI",font_size=8,bold=True,font_color=RED,bg_color=WHITE,
         align="left",valign="vcenter",left=1,right=1,bottom=1,border_color="#E2E8F0")})
+
+def print_setup(ws, last_row=60, last_col=18):
+    """Landscape, fit-to-1-page-wide, bounded print area so PDF/Print exports read as clean pages."""
+    ws.set_landscape()
+    ws.fit_to_pages(1, 0)
+    ws.print_area(0, 0, last_row, last_col)
+    ws.set_margins(left=0.3, right=0.3, top=0.4, bottom=0.4)
 
 def place_chart(e, ws, r, c, ch, w=470, h=260):
     ch.set_size({"width":w,"height":h}); ws.insert_chart(r,c,ch)
@@ -113,6 +133,7 @@ def build_cover(e):
         "This board pack combines the Executive Dashboard and Leadership Review into a single "
         "PDF via the ExportBoardPack macro (Home). Every figure is live at the moment of export.",
         F["note"])
+    print_setup(ws, last_row=r+5, last_col=12)
 
 # ---- Home ----------------------------------------------------------------
 def build_home(e):
@@ -144,6 +165,8 @@ def build_home(e):
         "width":180,"height":26,"x_offset":2,"y_offset":4})
     ws.insert_button(btnrow,8,{"macro":"UnprotectAllSheets","caption":"🔓 Unlock Sheets to Edit",
         "width":170,"height":26,"x_offset":2,"y_offset":4})
+    ws.insert_button(btnrow,11,{"macro":"BuildTrackerSlicers","caption":"🎚 Add Tracker Slicers",
+        "width":170,"height":26,"x_offset":2,"y_offset":4})
     # register + dashboard index (two columns: tracker name -> register | dashboard)
     ws.merge_range("B15:M15","TRACKER REGISTERS & DASHBOARDS  (click either link)",F["section"])
     lblf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=INK,bg_color=GREY_L,
@@ -172,6 +195,7 @@ def build_home(e):
         "Fully dynamic: every KPI, chart and RAG status recalculates automatically from the 24 registers. "
         "Set your man-hours & targets on the Settings sheet, choose a Period (month/quarter) & Department on "
         "the Executive Dashboard, add rows to any register and click ⟳ Refresh — no manual updates required.",F["note"])
+    print_setup(ws, last_row=r3+5, last_col=12)
 
 # ---- Executive -----------------------------------------------------------
 LAGGING_CARDS = ["TRIR","LTIFR","Total Incidents","Recordable","LTI + Fatality","Near Miss",
@@ -273,9 +297,12 @@ def build_exec(e):
 
     ws.merge_range(row,1,row,18,"RISK PROFILE & TOP-10 ANALYSIS",F["section"]); row+=1
     radar=e.wb.add_chart({"type":"radar","subtype":"with_markers"})
-    radar.add_series({"categories":RR["_radar_lbl"],"values":RR["_radar_val"],"line":{"color":BLUE_M,"width":2},
-        "fill":{"color":BLUE_L,"transparency":30},"marker":{"type":"circle","size":5,"fill":{"color":BLUE_D}}})
-    e._style(radar,"Monthly Performance Profile"); radar.set_legend({"none":True})
+    radar.add_series({"name":"Actual","categories":RR["_radar_lbl"],"values":RR["_radar_val"],
+        "line":{"color":BLUE_M,"width":2},"fill":{"color":BLUE_L,"transparency":30},
+        "marker":{"type":"circle","size":5,"fill":{"color":BLUE_D}}})
+    radar.add_series({"name":"Target","categories":RR["_radar_lbl"],"values":RR["_radar_tgt"],
+        "line":{"color":ACCENT,"width":1.5,"dash_type":"dash"},"marker":{"type":"diamond","size":4,"fill":{"color":ACCENT}}})
+    e._style(radar,"Compliance Profile: Actual vs Target"); radar.set_legend({"position":"bottom","font":{"size":8}})
     heat_note = e._fmt(font_name="Segoe UI",font_size=9,italic=True,font_color=GREY_M)
     ct1=e.bar_chart(RR["_topact_lbl"],RR["_topact_val"],"Top 10 Unsafe Acts",AMBER)
     ct2=e.bar_chart(RR["_topcond_lbl"],RR["_topcond_val"],"Top 10 Unsafe Conditions",RED)
@@ -312,6 +339,7 @@ def build_exec(e):
         ws.merge_range(rr,3,rr,4,"=Calculations!$%s$%d"%(A,er),F["td"])
         ws.merge_range(rr,5,rr,6,"=Calculations!$%s$%d"%(T,er),F["td"])
         ws.merge_range(rr,7,rr,8,"=Calculations!$%s$%d"%(S,er),F["tdl"])
+    print_setup(ws, last_row=row+n_rag+3, last_col=18)
 
 def _months(e):
     return e._month_cat_range
@@ -356,6 +384,25 @@ def build_leadership(e):
     ch2=e.col_chart(RR["_inctrend"]["lbl"],[("Incidents",RR["_inctrend"]["val"],ACCENT)],"12-Month Incident Trend")
     ch3=e.bar_chart(RR["_leading"]["lbl"],RR["_leading"]["val"],"Leading Indicators",GREEN)
     place_chart(e,ws,row,1,ch1,486,300); place_chart(e,ws,row,7,ch2,486,300); place_chart(e,ws,row,13,ch3,486,300)
+    row+=16
+
+    # Top Movers - management by exception: biggest improvement / regression this period
+    ws.merge_range(row,1,row,18,"TOP MOVERS  ·  biggest change vs prior period, normalised across all 24 trackers",F["section"]); row+=1
+    goodf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=GREEN,align="left",valign="vcenter",
+        border=1,border_color="#D8E1EB")
+    badf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=RED,align="left",valign="vcenter",
+        border=1,border_color="#D8E1EB")
+    pctf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,align="center",valign="vcenter",
+        border=1,border_color="#D8E1EB",num_format='+0.0%;-0.0%')
+    ws.merge_range(row,1,row,4,"🟢 BEST IMPROVEMENT",F["section"]); ws.merge_range(row,7,row,10,"🔴 BIGGEST REGRESSION",F["section"])
+    row+=1
+    mb=RR["_movers_best"]; mw=RR["_movers_worst"]
+    for k in range(3):
+        ws.merge_range(row+k,1,row+k,3,"=INDEX(%s,%d)"%(mb["lbl"],k+1),goodf)
+        ws.write_formula(row+k,4,"=INDEX(%s,%d)"%(mb["val"],k+1),pctf,0)
+        ws.merge_range(row+k,7,row+k,9,"=INDEX(%s,%d)"%(mw["lbl"],k+1),badf)
+        ws.write_formula(row+k,10,"=INDEX(%s,%d)"%(mw["val"],k+1),pctf,0)
+    print_setup(ws, last_row=row+6, last_col=18)
 
 def _leadership_tiles(e, ws, row, defs):
     for i,(lbl,ex,kind,acc) in enumerate(defs):
@@ -406,19 +453,38 @@ def build_register_dash(e, spec):
             [AMBER,BLUE_M,GREEN,RED,GREY_M,"#8B5CF6"]))
     for i,ch in enumerate(charts2[:2]):
         place_chart(e,ws,row,1+i*6,ch,486,290)
-    # Department table alongside (real numbers, not just chart)
-    if "dept_lbl" in RR:
-        ws.merge_range(row,13,row,18,"Department table → Calculations sheet, row %s"%RR["dept_lbl"].split("$")[2],F["note"])
+    # live Department Performance table (real numbers, not just a chart), with data bars
+    if "dept_top" in RR:
+        _dept_table(e, ws, row, RR)
     row+=16
 
     # Monthly Performance Matrix (rows=measures, cols=Jan..Dec+YTD) - live table, not a chart
     ws.merge_range(row,1,row,18,"MONTHLY PERFORMANCE MATRIX",F["section"]); row+=1
     _matrix_table(e, ws, row, spec, RR)
+    print_setup(ws, last_row=row+9, last_col=18)
+
+def _dept_table(e, ws, row, RR):
+    """Live Department Performance table (Department | Count | 2 metrics), with a data bar
+    on Count for instant visual ranking - mirrors the Calculations sheet via formulas."""
+    F=e.F; top=RR["dept_top"]; dc0=RR["dept_dc0"]; n=RR["dept_n"]
+    headers=["Department","Count",RR["dept_met1_name"],RR["dept_met2_name"]]
+    for j,h in enumerate(headers):
+        ws.write(row,1+j,h,F["th"])
+    for i in range(n):
+        rr=row+1+i; srcrow=top+1+i
+        for j,kind in enumerate([("l",None),("n","num"),("n",RR["dept_met1_kind"]),("n",RR["dept_met2_kind"])]):
+            align,knd = kind
+            fmt = F["tdl"] if align=="l" else (F["tdp"] if knd=="pct" else F["tdn"])
+            ws.write_formula(rr,1+j,"=IFERROR(Calculations!$%s$%d,\"\")"%(xl_col_to_name(dc0+j),srcrow+1),fmt,0)
+    ws.conditional_format(row+1,2,row+n,2,{"type":"data_bar","bar_color":BLUE_M})
 
 def _matrix_table(e, ws, row, spec, RR):
+    """Live Monthly Performance Matrix, mirrored from Calculations. Percentage rows get a
+    green-amber-red colour scale across their own 12 months, so a missed month jumps out."""
     F=e.F
     top=RR.get("matrix_top")
     if top is None: return
+    kinds=RR.get("matrix_kinds",[])
     headers=["Metric"]+MONTHS+["YTD"]
     for j,h in enumerate(headers):
         ws.write(row,1+j,h,F["th"])
@@ -433,3 +499,6 @@ def _matrix_table(e, ws, row, spec, RR):
         for j in range(13):
             cL=xl_col_to_name(mc0+1+j)
             ws.write_formula(rr,2+j,"=IFERROR(%s!$%s$%d,\"\")"%(calc_sheet,cL,srcrow+1),F["tdn"],0)
+        if i < len(kinds) and kinds[i]=="pct":
+            ws.conditional_format(rr,2,rr,13,{"type":"3_color_scale",
+                "min_color":RED_L,"mid_color":AMBER_L,"max_color":GREEN_L})
