@@ -72,6 +72,40 @@ All of this reuses the existing RAG-vs-target cards, sparklines, drill-down hype
 Department slicer and Monthly Performance Matrix — this round is a content/analysis
 redesign of the chart layer, not a re-platform.
 
+## Round 7: every tracker dashboard's 8 KPI cards now match the client's own reference
+## dashboard (`Share_HSE_Full_System2.xlsx`) card-for-card
+Previously each tracker used a generic Total/Closed/Open/Overdue card template. All 24
+tracker dashboards now carry the **exact 8 KPI cards** (label, order and metric) the client's
+own reference workbook defines for that tracker — e.g. Training now shows Total Trainings /
+Completed / In Progress / Scheduled / Avg Attendance % / Total Hours / Pass Rate /
+Certificates instead of a generic Total/Closed/Open/Overdue row. Round 6's bespoke
+"signature" charts (BBS Safe:At-Risk ratio, Drill response-time actual-vs-target, CAPA
+on-time-vs-delayed, NC Root-Cause Pareto, Incident ageing buckets, Toolbox heat-map, etc.)
+are kept underneath as a bonus **Advanced Analysis** section on each dashboard — nothing
+from Round 6 was removed.
+
+Getting the cards to show real, non-zero numbers (not just correctly-labeled zeros) required
+rebuilding each register's underlying Status/category value pools to match the reference's
+actual vocabulary, since the two systems previously used different status domains for the
+same field. Cross-checked every one of the ~120 status/category literals referenced by the
+new KPI formulas against the reference file's own dashboards and register data; fixed the
+mismatches this surfaced:
+- **Safety Walkthroughs** — pool had `Cancelled` where the reference uses `Overdue`.
+- **Workplace/Equipment Inspections** — dropped a `Cancelled` value the reference doesn't use.
+- **Corrective Actions** — added the reference's `Cancelled` status.
+- **Emergency Drills** — added the reference's `Rescheduled` status.
+- **Management Reviews** — added the reference's `Scheduled` status.
+- **JSA** — added the reference's `Rejected` approval outcome.
+- **Disciplinary Actions** — the `Action Taken` pool never generated `Termination`, so the
+  "Terminations" KPI card silently showed 0; added it.
+- **Stop Work Authority** — the "Resolved" card was wired to the wrong field (`Investigation
+  Done = Yes`) instead of `Resolution = Resolved`; also added the missing `Resolved` value to
+  the Resolution pool.
+
+Also fixed a latent bug (pre-dating this round) where the Department-table and Monthly-Matrix
+status breakdowns always fell back to a generic status pool regardless of tracker, because
+the lookup key never matched; they now use each tracker's real pool.
+
 ## Round 5: per-tracker slicers, real RAG-vs-target on every card, sparklines, radar upgrade,
 ## department data bars, Top Movers, print-ready layout
 - **Per-tracker slicers** — a "🎚 Add Tracker Slicers" button (Home) adds a real, Table-bound

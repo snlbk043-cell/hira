@@ -536,7 +536,7 @@ class EHS:
         series("training_total", rcount("training"))
         series("train_completed", rstatus("training","Status","Completed"))
         series("obs_total", rcount("hseobs"))
-        series("obs_closed", rstatus("hseobs","Status","Closed"))
+        series("obs_closed", rstatus("hseobs","Status","Completed"))
         series("toolbox", rcount("toolbox"))
         s_wp=spec_of("wpinsp"); s_eq=spec_of("eqinsp"); s_wk=spec_of("walk")
         series("inspections", lambda mn:'COUNTIFS(%s,"%s",%s,dCrit)+COUNTIFS(%s,"%s",%s,dCrit)+COUNTIFS(%s,"%s",%s,dCrit)'%(
@@ -549,7 +549,7 @@ class EHS:
         s_dr=spec_of("drills")
         series("drills", lambda mn:'COUNTIFS(%s,"%s")'%(rng(s_dr,"Month"),mn))
         series("ca_total", rcount("ca"))
-        series("ca_closed", rstatus("ca","Status","Closed"))
+        series("ca_closed", rstatus("ca","Status","Completed"))
         series("jsa", rcount("jsa"))
         series("meetings", rcount("meetings"))
         s_ua=spec_of("unsafeact"); s_uc=spec_of("unsafecond")
@@ -564,7 +564,7 @@ class EHS:
         series("toolbox_att_target", rsum("toolbox","Target Attendees"))
         series("jsa_approved", rstatus("jsa","Approval Status","Approved"))
         series("wpinsp_total", rcount("wpinsp"))
-        series("wpinsp_closed", rstatus("wpinsp","Status","Closed"))
+        series("wpinsp_closed", rstatus("wpinsp","Status","Completed"))
         series("eqinsp_total", rcount("eqinsp"))
         series("eqinsp_critical", rsum("eqinsp","Critical Findings"))
         series("walk_total", rcount("walk"))
@@ -590,9 +590,9 @@ class EHS:
         series("alcohol_total", rcount("alcohol"))
         series("alcohol_positive", rvalcount("alcohol","Result","Positive"))
         series("unsafeact_total", rcount("unsafeact"))
-        series("unsafeact_closed", rstatus("unsafeact","Status","Closed"))
+        series("unsafeact_closed", rstatus("unsafeact","Status","Completed"))
         series("unsafecond_total", rcount("unsafecond"))
-        series("unsafecond_closed", rstatus("unsafecond","Status","Closed"))
+        series("unsafecond_closed", rstatus("unsafecond","Status","Completed"))
         series("nc_total", rcount("nc"))
         series("nc_closed", rstatus("nc","Status","Closed"))
 
@@ -1192,12 +1192,21 @@ class EHS:
         out["matrix_kinds"]=[kind for (_,_,kind,_) in measures]
         return out
 
+    def _status_vals(self, spec):
+        """The real status-like value pool for this tracker (matches the data generator),
+        not a generic fallback - critical now that pools differ sharply per tracker."""
+        pool = HD.STATUS_POOLS.get(spec["key"])
+        if pool: return pool[0]
+        st = spec.get("status")
+        if st: return HD.POOLS.get(st, HD.STATUS)
+        return HD.STATUS
+
     def _dept_table_metrics(self, spec):
         """Two department-level metric column defs: (label, fn(dept)->formula, kind)."""
         Mn=rng(spec,"Month"); Dp=rng(spec,"Department")
         st=spec.get("status")
         if st and st in spec["headers"]:
-            svals=HD.POOLS.get(st,HD.STATUS)
+            svals=self._status_vals(spec)
             closed=[v for v in svals if v in CLOSED_VALUES] or [svals[0]]
             def closedpct(d):
                 cf="+".join('COUNTIFS(%s,"%s",%s,mCrit,%s,"%s")'%(rng(spec,st),v,Mn,Dp,d) for v in closed)
@@ -1223,7 +1232,7 @@ class EHS:
         rows=[("Records", cnt, "num","sum")]
         st=spec.get("status")
         if st and st in spec["headers"]:
-            svals=HD.POOLS.get(st,HD.STATUS)
+            svals=self._status_vals(spec)
             closed=[v for v in svals if v in CLOSED_VALUES] or [svals[0]]
             def compl(mn):
                 cf="+".join('COUNTIFS(%s,"%s",%s,"%s"%s)'%(rng(spec,st),v,Mn,mn,dsuf()) for v in closed)
@@ -1238,89 +1247,131 @@ class EHS:
         return rows[:6]
 
     def _kpi_defs(self, spec):
-        """Row 1 (volume/status, up to 4) + Row 2 (tracker-specific metrics, up to 4) = 8 tiles."""
-        headers=spec["headers"]; Mn=rng(spec,"Month")
+        """The exact 8 KPI cards (2 rows x 4) for this tracker, matching the client's reference
+        dashboard (Share_HSE_Full_System2.xlsx) card-for-card - not a generic template."""
+        key=spec["key"]; Mn=rng(spec,"Month")
         dep=has(spec,"Department"); Dp=rng(spec,"Department") if dep else None
         dsuf=(",%s,dCrit"%Dp) if dep else ""
         total='COUNTIFS(%s,mCrit%s)'%(Mn,dsuf)
-        kpis=[("Total Records", total,"num")]
-        st=spec.get("status")
-        if st and st in headers:
-            svals=HD.POOLS.get(st,HD.STATUS)
-            closed=[v for v in svals if v in CLOSED_VALUES] or [svals[0]]
-            cf="+".join('COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf) for v in closed)
-            kpis.append(("Closed / Completed","IFERROR((%s)/%s*100,0)"%(cf,total),"pct"))
-            op=[v for v in svals if v in OPEN_VALUES]
-            if op:
-                of="+".join('COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf) for v in op)
-                kpis.append(("Open / Pending","%s"%of,"num"))
-                over=[v for v in svals if v=="Overdue"]
-                if over:
-                    ov="+".join('COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,st),v,Mn,dsuf) for v in over)
-                    kpis.append(("Overdue","%s"%ov,"num"))
-        kpis = kpis[:4]
-        # ---- row 2: tracker-specific metrics ----
         def cnt(col,val): return 'COUNTIFS(%s,"%s",%s,mCrit%s)'%(rng(spec,col),val,Mn,dsuf)
         def ssum(col): return 'SUMIFS(%s,%s,mCrit%s)'%(rng(spec,col),Mn,dsuf)
         def savg(col): return 'IFERROR(AVERAGEIFS(%s,%s,mCrit%s),0)'%(rng(spec,col),Mn,dsuf)
-        key=spec["key"]; row2=[]
-        auto=spec.get("auto",{})
+        def pctof(numf): return 'IFERROR((%s)/(%s)*100,0)'%(numf,total)
+        def nonblank(col): return 'COUNTIFS(%s,"<>",%s,mCrit%s)'%(rng(spec,col),Mn,dsuf)
+        def distinct(col, pool):
+            f='+'.join('--(COUNTIFS(%s,"%s",%s,mCrit%s)>0)'%(rng(spec,col),v,Mn,dsuf) for v in pool)
+            return f
+
         if key=="toolbox":
-            row2=[("Avg "+list(auto)[0],savg(list(auto)[0]),"pct"),("Total Duration (min)",ssum("Duration (min)"),"num"),
-                  ("Action Required = Yes",cnt("Action Required","Yes"),"num")]
+            defs=[("Total","num",total),("Action: Yes","num",cnt("Action Required","Yes")),
+                ("Action: No","num",cnt("Action Required","No")),("Avg Attendance","pct",savg("Attendance %")),
+                ("Total Target","num",ssum("Target Attendees")),("Total Actual","num",ssum("Actual Attendees")),
+                ("Avg Duration","num",savg("Duration (min)")),
+                ("Topics Covered","num",distinct("Topic", HD.TOPICS))]
         elif key=="jsa":
-            row2=[("Hazards Identified",ssum("Hazards Identified"),"num"),
-                  ("High/Critical Risk",cnt("Risk Level","High")+"+"+cnt("Risk Level","Critical"),"num")]
+            defs=[("Total JSAs","num",total),("Approved","num",cnt("Approval Status","Approved")),
+                ("Pending","num",cnt("Approval Status","Pending Review")),("High Risk","num",cnt("Risk Level","High")),
+                ("Medium Risk","num",cnt("Risk Level","Medium")),("Low Risk","num",cnt("Risk Level","Low")),
+                ("Total Hazards","num",ssum("Hazards Identified")),("Controls Done","num",cnt("Compliance","Compliant"))]
         elif key=="training":
-            row2=[("Avg Attendance %",savg("Attendance %"),"pct"),("Total Duration (hrs)",ssum("Duration (hrs)"),"num"),
-                  ("Certificates Issued",cnt("Certificate Issued","Yes"),"num"),("Assessment Pass",cnt("Assessment Result","Pass"),"num")]
+            defs=[("Total Trainings","num",total),("Completed","num",cnt("Status","Completed")),
+                ("In Progress","num",cnt("Status","In Progress")),("Scheduled","num",cnt("Status","Scheduled")),
+                ("Avg Attendance %","pct",savg("Attendance %")),("Total Hours","num",ssum("Duration (hrs)")),
+                ("Pass Rate","pct",pctof(cnt("Assessment Result","Pass"))),("Certificates","num",cnt("Certificate Issued","Yes"))]
         elif key=="hseobs":
-            row2=[("Critical/High Risk",cnt("Risk Level","Critical")+"+"+cnt("Risk Level","High"),"num")]
+            defs=[("Total Obs","num",total),("Completed","num",cnt("Status","Completed")),
+                ("In Progress","num",cnt("Status","In Progress")),("Overdue","num",cnt("Status","Overdue")),
+                ("Safe Acts","num",cnt("Observation Type","Safe Act")+"+"+cnt("Observation Type","Safe Condition")),
+                ("Unsafe Acts","num",cnt("Observation Type","Unsafe Act")+"+"+cnt("Observation Type","Unsafe Condition")),
+                ("High Risk","num",cnt("Risk Level","High")),("Comp %","pct",pctof(cnt("Status","Completed")))]
         elif key in ("wpinsp","eqinsp","walk"):
-            row2=[("Non-Conformances",ssum("Non-Conformances"),"num"),("Critical Findings",ssum("Critical Findings"),"num"),
-                  ("Avg Checkpoints",savg("Checkpoints Inspected"),"num")]
+            defs=[("Total","num",total),("Completed","num",cnt("Status","Completed")),
+                ("Overdue","num",cnt("Status","Overdue")),("Critical","num",ssum("Critical Findings")),
+                ("Checkpoints","num",ssum("Checkpoints Inspected")),("Non-Conf","num",ssum("Non-Conformances")),
+                ("NC Rate","pct",pctof(ssum("Non-Conformances"))),("Comp %","pct",pctof(cnt("Status","Completed")))]
         elif key=="meetings":
-            row2=[("Avg Attendance %",savg("Attendance %"),"pct"),("Avg Close-out %",savg("Close-out %"),"pct"),
-                  ("Actions Raised",ssum("Action Items Raised"),"num")]
+            defs=[("Total Meetings","num",total),("Avg Attendance","pct",savg("Attendance %")),
+                ("Actions Raised","num",ssum("Action Items Raised")),("Actions Closed","num",ssum("Actions Closed")),
+                ("Close-out %","pct",savg("Close-out %")),("Total Hours","num","(%s)/60"%ssum("Duration (min)")),
+                ("MoM Done","num",cnt("MoM Circulated","Yes")),("MoM Pending","num",cnt("MoM Circulated","No"))]
         elif key=="bulletins":
-            row2=[("Avg Reach %",savg("Reach %"),"pct"),("Critical/High Priority",cnt("Priority","Critical")+"+"+cnt("Priority","High"),"num")]
+            defs=[("Total","num",total),("Issued","num",cnt("Status","Issued")),
+                ("Acknowledged","num",cnt("Status","Acknowledged")),("Closed","num",cnt("Status","Closed")),
+                ("Target Reach","num",ssum("Target Reach")),("Actual Reach","num",ssum("Actual Reach")),
+                ("Reach %","pct",savg("Reach %")),("High Priority","num",cnt("Priority","High"))]
         elif key=="drills":
-            row2=[("Avg Participation %",savg("Participation %"),"pct"),("Avg Response (min)",savg("Actual Response (min)"),"num"),
-                  ("Excellent/Good Rating",cnt("Overall Rating","Excellent")+"+"+cnt("Overall Rating","Good"),"num")]
+            defs=[("Total Drills","num",total),("Completed","num",cnt("Status","Completed")),
+                ("Pending","num",cnt("Status","Action Pending")),("Avg Participation","pct",savg("Participation %")),
+                ("Target Resp","num",savg("Target Response (min)")),("Actual Resp","num",savg("Actual Response (min)")),
+                ("Total Participants","num",ssum("Actual Participants")),("Improvements","num",nonblank("Improvement Areas"))]
         elif key in ("iaudit","eaudit"):
-            row2=[("Minor NC",ssum("Minor NC"),"num"),("Major NC",ssum("Major NC"),"num"),("Avg Checklist Items",savg("Checklist Items"),"num")]
+            defs=[("Total Audits","num",total),("Completed","num",cnt("Status","Completed")),
+                ("In Progress","num",cnt("Status","In Progress")),("Scheduled","num",cnt("Status","Scheduled")),
+                ("Checklist Items","num",ssum("Checklist Items")),("Minor NC","num",ssum("Minor NC")),
+                ("Major NC","num",ssum("Major NC")),("Observations","num",ssum("Observations"))]
         elif key=="mgmtvisit":
-            row2=[("Avg Close-out %",savg("Close-out %"),"pct"),("Actions Raised",ssum("Actions Raised"),"num")]
+            defs=[("Total Visits","num",total),("Completed","num",cnt("Status","Completed")),
+                ("Action Pending","num",cnt("Status","Action Pending")),("Observations","num",ssum("Observations Made")),
+                ("Actions Raised","num",ssum("Actions Raised")),("Actions Closed","num",ssum("Actions Closed")),
+                ("Close-out %","pct",savg("Close-out %")),("Avg Duration","num",savg("Duration (min)"))]
         elif key=="mgmtreview":
-            row2=[("Avg Attendance %",savg("Attendance %"),"pct"),("Decisions Made",ssum("Decisions Made"),"num"),
-                  ("Actions Assigned",ssum("Actions Assigned"),"num")]
+            defs=[("Total Reviews","num",total),("Completed","num",cnt("Status","Completed")),
+                ("In Progress","num",cnt("Status","In Progress")),("Avg Attendance","pct",savg("Attendance %")),
+                ("Decisions","num",ssum("Decisions Made")),("Actions","num",ssum("Actions Assigned")),
+                ("Close-out","pct",savg("Close-out %")),("MoM Done","num",cnt("MoM Distributed","Yes"))]
         elif key=="disc":
-            row2=[("3rd Offense",cnt("Offense Level","3rd Offense"),"num"),
-                  ("Suspension/Termination",cnt("Action Taken","Suspension")+"+"+cnt("Action Taken","Termination"),"num")]
+            defs=[("Total Cases","num",total),("Completed","num",cnt("Status","Completed")),
+                ("Under Review","num",cnt("Status","Under Review")),("Appealed","num",cnt("Status","Appealed")),
+                ("1st Offense","num",cnt("Offense Level","1st Offense")),("Repeat","num",cnt("Offense Level","Repeat")),
+                ("Suspensions","num",cnt("Action Taken","Suspension")),("Terminations","num",cnt("Action Taken","Termination"))]
         elif key=="awards":
-            row2=[("Presented",cnt("Status","Presented"),"num")]
+            defs=[("Total Awards","num",total),("Presented","num",cnt("Status","Presented")),
+                ("Scheduled","num",cnt("Status","Scheduled")),("Nominated","num",cnt("Status","Nominated")),
+                ("Certificates","num",cnt("Reward Type","Certificate")),("Cash Bonus","num",cnt("Reward Type","Cash Bonus")),
+                ("Trophies","num",cnt("Reward Type","Trophy")),("Vouchers","num",cnt("Reward Type","Gift Voucher"))]
         elif key=="swa":
-            row2=[("Avg Downtime (min)",savg("Downtime (min)"),"num"),
-                  ("Critical/High Severity",cnt("Severity","Critical")+"+"+cnt("Severity","High"),"num"),
-                  ("Investigated",cnt("Investigation Done","Yes"),"num")]
+            defs=[("Total SWA","num",total),("Resolved","num",cnt("Resolution","Resolved")),
+                ("Investigating","num",cnt("Resolution","Under Investigation")),("Fixed","num",cnt("Resolution","Permanent Fix Applied")),
+                ("Critical","num",cnt("Severity","Critical")),("High","num",cnt("Severity","High")),
+                ("Total Downtime","num",ssum("Downtime (min)")),("Investigated","num",cnt("Investigation Done","Yes"))]
         elif key=="alcohol":
-            row2=[("Positive Results",cnt("Result","Positive"),"num")]
+            defs=[("Total Tests","num",total),("Negative","num",cnt("Result","Negative")),
+                ("Positive","num",cnt("Result","Positive")),("Pass Rate","pct",pctof(cnt("Result","Negative"))),
+                ("Random Tests","num",cnt("Test Type","Random")),("Pre-Shift","num",cnt("Test Type","Pre-Shift")),
+                ("Post-Incident","num",cnt("Test Type","Post-Incident")),("Suspicion","num",cnt("Test Type","Reasonable Suspicion"))]
         elif key=="ptwaudit":
-            row2=[("Avg Compliance %",savg("Compliance %"),"pct"),("Deviations Found",ssum("Deviations Found"),"num")]
+            defs=[("Total Audits","num",total),("Compliant","num",cnt("Verdict","Compliant")),
+                ("Non-Compliant","num",cnt("Verdict","Non-Compliant")),("Partial","num",cnt("Verdict","Partially Compliant")),
+                ("Permits Reviewed","num",ssum("Permits Reviewed")),("Deviations","num",ssum("Deviations Found")),
+                ("Avg Compliance","pct",savg("Compliance %")),("Compliance Rate","pct",pctof(cnt("Verdict","Compliant")))]
         elif key=="ca":
-            row2=[("On-Time",cnt("Timeliness","On-Time"),"num"),
-                  ("Critical/High Priority",cnt("Priority","Critical")+"+"+cnt("Priority","High"),"num")]
+            defs=[("Total CAs","num",total),("Completed","num",cnt("Status","Completed")),
+                ("In Progress","num",cnt("Status","In Progress")),("Overdue","num",cnt("Status","Overdue")),
+                ("Comp %","pct",pctof(cnt("Status","Completed"))),("High Priority","num",cnt("Priority","High")),
+                ("Medium","num",cnt("Priority","Medium")),("Low","num",cnt("Priority","Low"))]
         elif key=="nc":
-            row2=[("Critical/High Severity",cnt("Severity","Critical")+"+"+cnt("Severity","High"),"num")]
+            defs=[("Total NCs","num",total),("Closed","num",cnt("Status","Closed")),
+                ("Open","num",cnt("Status","Open")),("Overdue","num",cnt("Status","Overdue")),
+                ("Closure %","pct",pctof(cnt("Status","Closed"))),("Major","num",cnt("Severity","Major")),
+                ("Minor","num",cnt("Severity","Minor")),("Observations","num",cnt("Severity","Observation"))]
         elif key in ("unsafeact","unsafecond"):
-            row2=[("Critical/High Risk",cnt("Risk Level","Critical")+"+"+cnt("Risk Level","High"),"num")]
+            defs=[("Total Reports","num",total),("Completed","num",cnt("Status","Completed")),
+                ("In Progress","num",cnt("Status","In Progress")),("Overdue","num",cnt("Status","Overdue")),
+                ("High Risk","num",cnt("Risk Level","High")),("Medium Risk","num",cnt("Risk Level","Medium")),
+                ("Low Risk","num",cnt("Risk Level","Low")),("Closure %","pct",pctof(cnt("Status","Completed")))]
         elif key=="incident":
-            row2=[("Total Lost Days",ssum("Lost Days"),"num"),
-                  ("Recordable",cnt("Classification","Lost Time Injury")+"+"+cnt("Classification","Medical Treatment")
-                   +"+"+cnt("Classification","Restricted Work")+"+"+cnt("Classification","Fatality"),"num")]
-        for lbl,formula,kind in row2[:4]:
-            kpis.append((lbl,formula,kind))
-        return kpis[:8]
+            IM=rng(spec,"Month"); ID=rng(spec,"Department"); ICls=rng(spec,"Classification")
+            IAge=rng(spec,"Ageing (Days)"); IStat=rng(spec,"Status")
+            defs=[("Total","num",total),("Open","num",cnt("Status","Open")),("Closed","num",cnt("Status","Closed")),
+                ("Overdue","num",'COUNTIFS(%s,"<>Closed",%s,">30",%s,mCrit%s)'%(IStat,IAge,IM,dsuf)),
+                ("Near Miss","num",cnt("Classification","Near Miss")),
+                ("Recordable","num",cnt("Classification","Lost Time Injury")+"+"+cnt("Classification","Medical Treatment")
+                    +"+"+cnt("Classification","Restricted Work")+"+"+cnt("Classification","Fatality")),
+                ("LTI+Fatality","num",cnt("Classification","Lost Time Injury")+"+"+cnt("Classification","Fatality")),
+                ("Avg Close (d)","num",'IFERROR(AVERAGEIFS(%s,%s,"Closed",%s,mCrit%s),0)'%(IAge,IStat,IM,dsuf))]
+        else:
+            raise KeyError("no KPI card definitions for tracker key %r" % key)
+        return [(lbl,f,kind) for lbl,kind,f in defs][:8]
 
     def _distinct(self, spec, header):
         idx=spec["headers"].index(header)

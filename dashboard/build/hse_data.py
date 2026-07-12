@@ -87,6 +87,29 @@ UNSAFE_COND_TYPES = ["Slippery Floor","Poor Housekeeping","Inadequate Lighting",
 ROOT_CAUSES = ["Human Error","Unsafe Act","Unsafe Condition","Inadequate Procedure",
                "Lack of Training","Equipment Failure","PPE Not Used","Poor Housekeeping"]
 
+# Per-tracker Status value pools + weights, matched to the client reference dashboard
+# (Share_HSE_Full_System2.xlsx) so its exact KPI-card labels are meaningful, not cosmetic.
+STATUS_POOLS = {
+    "training":  (["Completed","Scheduled","In Progress"], [0.55,0.28,0.17]),
+    "hseobs":    (["Completed","In Progress","Pending","Overdue"], [0.45,0.25,0.20,0.10]),
+    "wpinsp":    (["Completed","In Progress","Overdue","Pending"], [0.45,0.22,0.13,0.20]),
+    "eqinsp":    (["Completed","In Progress","Overdue","Pending"], [0.45,0.22,0.13,0.20]),
+    "walk":      (["Completed","In Progress","Overdue","Pending"], [0.48,0.22,0.12,0.18]),
+    "bulletins": (["Closed","Acknowledged","Issued"], [0.45,0.35,0.20]),
+    "drills":    (["Completed","Action Pending","Rescheduled"], [0.68,0.22,0.10]),
+    "iaudit":    (["Completed","In Progress","Scheduled"], [0.55,0.25,0.20]),
+    "eaudit":    (["Completed","In Progress","Scheduled"], [0.50,0.25,0.25]),
+    "mgmtvisit": (["Completed","Action Pending"], [0.70,0.30]),
+    "mgmtreview":(["Completed","In Progress","Scheduled"], [0.65,0.20,0.15]),
+    "disc":      (["Completed","Under Review","Appealed"], [0.60,0.28,0.12]),
+    "awards":    (["Presented","Scheduled","Nominated"], [0.45,0.25,0.30]),
+    "ca":        (["Completed","In Progress","Overdue","Pending","Cancelled"], [0.42,0.20,0.13,0.18,0.07]),
+    "nc":        (["Closed","Open","Under Review","Overdue"], [0.42,0.25,0.20,0.13]),
+    "unsafeact": (["Completed","Pending","In Progress","Overdue"], [0.50,0.24,0.16,0.10]),
+    "unsafecond":(["Completed","Pending","In Progress","Overdue"], [0.50,0.24,0.16,0.10]),
+    "incident":  (["Closed","In Progress","Open"], [0.70,0.18,0.12]),
+}
+
 # ---- register specs (exact headers from uploaded system) -----------------
 REGISTERS = [
  {"key":"toolbox","sheet":"Toolbox Talks","emoji":"🗣️","code":"TBT",
@@ -228,11 +251,31 @@ def gen_value(header, d, rownum, code, dept, key=None):
         return random.choices(
             ["Near Miss","First Aid","Medical Treatment","Restricted Work","Lost Time Injury","Fatality"],
             weights=[0.50,0.27,0.12,0.06,0.045,0.005])[0]
-    # register-appropriate status domains
+    if h == "Approval Status" and key == "jsa":
+        return random.choices(["Approved","Pending Review","Revision Required","Rejected"],
+                              [0.52,0.28,0.13,0.07])[0]
+    # register-appropriate status domains (aligned to the client's reference dashboard cards)
     if h == "Status":
-        if key == "training":
-            return random.choices(["Completed","In Progress","Scheduled","Overdue"],[0.60,0.18,0.14,0.08])[0]
+        pool = STATUS_POOLS.get(key)
+        if pool:
+            vals, weights = pool
+            return random.choices(vals, weights)[0]
         return random.choices(["Closed","In Progress","Open","Overdue"],[0.62,0.18,0.12,0.08])[0]
+    if h == "Severity" and key == "nc":
+        return random.choices(["Major","Minor","Observation"],[0.40,0.35,0.25])[0]
+    if h == "Severity" and key == "swa":
+        return random.choices(["Critical","High","Medium"],[0.30,0.35,0.35])[0]
+    if h == "Action Taken" and key == "disc":
+        return random.choices(["Verbal Warning","Written Warning","Suspension","Retraining","Termination"],
+                              [0.30,0.28,0.20,0.14,0.08])[0]
+    if h == "Offense Level":
+        return random.choices(["1st Offense","2nd Offense","3rd Offense","Repeat"],[0.45,0.25,0.10,0.20])[0]
+    if h == "Observation Type" and key == "hseobs":
+        return random.choices(["Safe Act","Unsafe Act","Safe Condition","Unsafe Condition","Near Miss"],
+                              [0.28,0.24,0.16,0.14,0.18])[0]
+    if h == "Resolution" and key == "swa":
+        return random.choices(["Resolved","Permanent Fix Applied","Under Investigation"],
+                              [0.35,0.40,0.25])[0]
     if h in ("Risk Level","Risk Rating","Severity"):
         return random.choices(["Critical","High","Medium","Low"],[0.06,0.20,0.42,0.32])[0]
     # meaningful "type" phrase for Unsafe Act / Unsafe Condition Description (used as category)
