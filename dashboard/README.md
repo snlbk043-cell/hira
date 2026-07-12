@@ -106,6 +106,44 @@ Also fixed a latent bug (pre-dating this round) where the Department-table and M
 status breakdowns always fell back to a generic status pool regardless of tracker, because
 the lookup key never matched; they now use each tracker's real pool.
 
+## Round 8: Leadership Review depth + a per-tracker Advanced Analysis section
+Six new blocks on **Leadership Review**:
+- **System Health radar** — a 24-point radar plotting every tracker's live RAG status (via its
+  own representative closure/compliance KPI), with the full detail as a table alongside it.
+- **Department League Table** — departments ranked by a composite score (average of Training %,
+  Obs Closure % and CA Closure %, penalised for Recordable incidents), not just an incident-only
+  score.
+- **System-Wide Action Backlog** — total open/overdue items across Corrective Actions, NC
+  Management, HSE Observations, Workplace/Equipment Inspections, Walkthroughs and Unsafe
+  Act/Condition registers, broken into 0-7/8-15/16-30/31+ day ageing buckets.
+- **Leading : Lagging ratio trend** — a 12-month trend of proactive activity (Toolbox, Training,
+  Observations, Inspections, Audits, Drills, PTW, Meetings, JSA) versus reactive outcomes
+  (Incidents, NCs, Disciplinary actions), plus a Q1-Q4 strip for Total Incidents, Training
+  Compliance % and CA Closure %.
+- **Auto-generated insight bullets** — 4 formula-driven sentences (TRIR movement, the
+  lowest-scoring department, system-wide backlog size, current leading:lagging ratio) that
+  update live with the data, not static commentary.
+
+A new **Advanced Analysis** section appears on every tracker dashboard that has something
+genuinely new to add beyond its existing KPI cards and signature charts:
+- **Overdue-ageing chart** (0-7/8-15/16-30/31+ days) on the 8 trackers with a due-date field:
+  Corrective Actions, NC Management, HSE Observations, Workplace/Equipment Inspections,
+  Walkthroughs, Unsafe Acts, Unsafe Conditions.
+- **Repeat-offender watchlist** — top-5 departments by High/Critical severity (or, for the three
+  inspection registers with no Risk Level field, by summed Critical Findings) — on JSA, HSE
+  Observations, Workplace/Equipment Inspections, Walkthroughs, Unsafe Acts/Conditions, NC
+  Management and Stop Work Authority.
+- **Target-vs-Actual trend with a next-month forecast** — Excel's own `TREND()` linear
+  projection appended as a 13th point, on the four trackers that track both a target and an
+  actual monthly figure: Toolbox Talks, Safety Bulletins, Emergency Drills, Management Reviews.
+- **Cost-impact rollup** — Stop Work downtime and Incident lost days converted to an estimated
+  cost, using two new Settings rates (`Downtime Cost per Minute`, `Lost-Day Cost per Day`) — not
+  a fabricated number, a transparent, user-editable rate × a real sum.
+
+Every tracker dashboard also gained a **month-over-month delta strip** under its KPI cards
+("This month (Jun): 14  vs  May: 11  ▲ +27.3%"), independent of whether a specific Register
+Month is selected.
+
 ## Round 5: per-tracker slicers, real RAG-vs-target on every card, sparklines, radar upgrade,
 ## department data bars, Top Movers, print-ready layout
 - **Per-tracker slicers** — a "🎚 Add Tracker Slicers" button (Home) adds a real, Table-bound

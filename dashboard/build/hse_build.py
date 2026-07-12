@@ -302,6 +302,13 @@ class EHS:
             ws.write(r,1,lbl,F["set_lbl"]); ws.write_number(r,2,val,F["set_val"])
             ws.write(r,3,note,F["set_note"])
             self.wb.define_name(name,"=Settings!$C$%d"%(r+1)); r+=1
+        r+=1; r=block(r,"COST PARAMETERS  ·  used only by the optional cost-impact rollups")
+        cp=[("Downtime Cost per Minute (₹)",150,"Stop Work Authority downtime → estimated cost","CostPerDowntimeMin"),
+            ("Lost-Day Cost per Day (₹)",8000,"Incident lost days → estimated cost","CostPerLostDay")]
+        for lbl,val,note,name in cp:
+            ws.write(r,1,lbl,F["set_lbl"]); ws.write_number(r,2,val,F["set_val"])
+            ws.write(r,3,note,F["set_note"])
+            self.wb.define_name(name,"=Settings!$C$%d"%(r+1)); r+=1
         ws.write_url(0,1,"internal:'Home'!A1",F["note"],"Home")
 
     def write_help(self):
@@ -469,6 +476,7 @@ class EHS:
         ws.write(r0+1,7,"CurMonthNo",F["set_lbl"]); ws.write_formula(r0+1,8,
             '=IF(%s=1,0,MATCH(SelPeriod,L_Month,0))'%isq,F["td"],0)
         curm="Calculations!$I$%d"%(r0+2)
+        self.wb.define_name("CurMonthNo","="+curm)
         hr=mr+1
         for j,h in enumerate(["Month","No","Cur","Prior"]): ws.write(hr-1,1+j,h,F["th"])
         for i,mn in enumerate(MONTHS):
@@ -639,6 +647,53 @@ class EHS:
         for i in range(12):
             ws.write_formula(hr+i,c0,"=IFERROR($%s$%d/$%s$%d*100,0)"%(ap_col,hr+1+i,at_col,hr+1+i),F["tdp"],0)
         scol["alcohol_rate_m"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
+
+        # ---- Leading:Lagging ratio trend (pure column-arithmetic on already-built monthly series) ----
+        def cellref(colname, mn):
+            i=MONTHS.index(mn)
+            return "$%s$%d"%(scol_col[colname], hr+1+i)
+        leading_parts=["toolbox","training_total","obs_total","inspections","audits","drills","ptw_total","meetings","jsa"]
+        lagging_parts=["totalinc","nc_total","disc"]
+        ws.write(hr-1,c0,"leading_total",F["th"])
+        for i,mn in enumerate(MONTHS):
+            ws.write_formula(hr+i,c0,"="+"+".join(cellref(p,mn) for p in leading_parts),F["tdn"],0)
+        scol["leading_total"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12)
+        scol_col["leading_total"]=xl_col_to_name(c0); c0+=1
+        ws.write(hr-1,c0,"lagging_total",F["th"])
+        for i,mn in enumerate(MONTHS):
+            ws.write_formula(hr+i,c0,"="+"+".join(cellref(p,mn) for p in lagging_parts),F["tdn"],0)
+        scol["lagging_total"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12)
+        scol_col["lagging_total"]=xl_col_to_name(c0); c0+=1
+        ws.write(hr-1,c0,"leadlag_ratio",F["th"])
+        for i,mn in enumerate(MONTHS):
+            ws.write_formula(hr+i,c0,"=IFERROR(%s/%s,0)"%(cellref("leading_total",mn),cellref("lagging_total",mn)),F["td"],0)
+        scol["leadlag_ratio"]="Calculations!$%s$%d:$%s$%d"%(xl_col_to_name(c0),hr+1,xl_col_to_name(c0),hr+12); c0+=1
+
+        # ---- Target-vs-Actual forecast blocks: 12 actual months + a 13th "Next" point
+        # projected with Excel's own TREND() (a real linear regression, not a fabricated number) ----
+        FORECAST_PAIRS=[("toolbox_att_target","toolbox_att_actual","fc_toolbox"),
+                        ("bulletins_target","bulletins_actual","fc_bulletins"),
+                        ("drills_target","drills_actual","fc_drills"),
+                        ("mgmtreview_invited","mgmtreview_attended","fc_mgmtreview")]
+        fc_row=hr+14
+        for tgt_name,act_name,tag in FORECAST_PAIRS:
+            tgt_col=scol_col[tgt_name]; act_col=scol_col[act_name]
+            ws.write(fc_row-1,c0,"Period",F["th"]); ws.write(fc_row-1,c0+1,"Target",F["th"]); ws.write(fc_row-1,c0+2,"Actual",F["th"])
+            for i,mn in enumerate(MONTHS):
+                ws.write(fc_row+i,c0,mn,F["td"])
+                ws.write_formula(fc_row+i,c0+1,"=$%s$%d"%(tgt_col,hr+1+i),F["tdn"],0)
+                ws.write_formula(fc_row+i,c0+2,"=$%s$%d"%(act_col,hr+1+i),F["tdn"],0)
+            ws.write(fc_row+12,c0,"Next (fcst)",F["td"])
+            actrange="$%s$%d:$%s$%d"%(act_col,hr+1,act_col,hr+12)
+            xrange="{1,2,3,4,5,6,7,8,9,10,11,12}"
+            ws.write_formula(fc_row+12,c0+1,"=$%s$%d"%(tgt_col,hr+12),F["tdn"],0)
+            ws.write_formula(fc_row+12,c0+2,"=ROUND(TREND(%s,%s,13),0)"%(actrange,xrange),F["tdn"],0)
+            lc=xl_col_to_name(c0); tc_=xl_col_to_name(c0+1); ac=xl_col_to_name(c0+2)
+            scol[tag+"_lbl"]="Calculations!$%s$%d:$%s$%d"%(lc,fc_row+1,lc,fc_row+13)
+            scol[tag+"_tgt"]="Calculations!$%s$%d:$%s$%d"%(tc_,fc_row+1,tc_,fc_row+13)
+            scol[tag+"_act"]="Calculations!$%s$%d:$%s$%d"%(ac,fc_row+1,ac,fc_row+13)
+            c0+=4
+
         self.MSER=scol   # expose monthly-series ranges for direct trend-chart reuse
 
         MH="Manhours"; nmc="SUM(%s)"%curmask; nmp="SUM(%s)"%prmask
@@ -1070,6 +1125,116 @@ class EHS:
         self.RR["_toolbox_heat_meta"]={"top":tb0,"col0":c0,"nrows":len(topics),"ncols":len(topdepts2)}
         r=tb0+len(topics)+2
 
+        # ---- Per-tracker Overdue Ageing (0-7/8-15/16-30/31+ days) for every tracker with a
+        # due-date field, feeding both that tracker's own dashboard chart and the system-wide
+        # backlog rollup below ----
+        BACKLOG_SPECS=[("ca","Due Date"),("nc","Target Close Date"),("hseobs","Due Date"),
+                       ("wpinsp","Due Date"),("eqinsp","Due Date"),("walk","Due Date"),
+                       ("unsafeact","Due Date"),("unsafecond","Due Date")]
+        age_buckets=[("0-7 days",0,7),("8-15 days",8,15),("16-30 days",16,30),("31+ days",31,None)]
+        bucket_cells={lbl:[] for lbl,_,_ in age_buckets}
+        backlog_total_cells=[]
+        for key,duefield in BACKLOG_SPECS:
+            s=spec_of(key)
+            a0=r
+            ws.write(a0-1,c0,"Ageing (open)",F["th"]); ws.write(a0-1,c0+1,"Count",F["th"])
+            DUE=rng(s,duefield); ST=rng(s,"Status"); SM=rng(s,"Month")
+            depsuf=(",%s,dCrit"%rng(s,"Department")) if has(s,"Department") else ""
+            for i,(lbl,lo,hi) in enumerate(age_buckets):
+                ws.write(a0+i,c0,lbl,F["tdl"])
+                if hi is None:
+                    f='COUNTIFS(%s,"Overdue",%s,"<="&(TODAY()-%d),%s,mCrit%s)'%(ST,DUE,lo,SM,depsuf)
+                else:
+                    f='COUNTIFS(%s,"Overdue",%s,"<="&(TODAY()-%d),%s,">="&(TODAY()-%d),%s,mCrit%s)'%(ST,DUE,lo,DUE,hi,SM,depsuf)
+                ws.write_formula(a0+i,c0+1,"="+f,F["tdn"],0)
+                bucket_cells[lbl].append(xl_rowcol_to_cell(a0+i,c0+1,True,True))
+            self.RR[key+"_aging_lbl"]=self._a1(a0,c0,a0+3)
+            self.RR[key+"_aging_val"]=self._a1(a0,c0+1,a0+3)
+            total_rng="%s:%s"%(xl_rowcol_to_cell(a0,c0+1,True,True),xl_rowcol_to_cell(a0+3,c0+1,True,True))
+            backlog_total_cells.append((key,"SUM(%s)"%total_rng))
+            r=a0+6
+
+        # ---- System-Wide Action Backlog: overdue count by tracker + aggregate ageing ----
+        bt0=r
+        ws.write(bt0-1,c0,"Tracker",F["th"]); ws.write(bt0-1,c0+1,"Overdue Count",F["th"])
+        for i,(key,formula) in enumerate(backlog_total_cells):
+            s=spec_of(key)
+            ws.write(bt0+i,c0,s["sheet"],F["tdl"])
+            ws.write_formula(bt0+i,c0+1,"="+formula,F["tdn"],0)
+        self.RR["_backlog_tracker_lbl"]=self._a1(bt0,c0,bt0+len(backlog_total_cells)-1)
+        self.RR["_backlog_tracker_val"]=self._a1(bt0,c0+1,bt0+len(backlog_total_cells)-1)
+        r=bt0+len(backlog_total_cells)+2
+
+        sb0=r
+        ws.write(sb0-1,c0,"Ageing Bucket (system-wide)",F["th"]); ws.write(sb0-1,c0+1,"Count",F["th"])
+        for i,(lbl,_,_) in enumerate(age_buckets):
+            ws.write(sb0+i,c0,lbl,F["tdl"])
+            ws.write_formula(sb0+i,c0+1,"="+"+".join(bucket_cells[lbl]),F["tdn"],0)
+        self.RR["_backlog_aging_lbl"]=self._a1(sb0,c0,sb0+3)
+        self.RR["_backlog_aging_val"]=self._a1(sb0,c0+1,sb0+3)
+        gt_rng="%s:%s"%(xl_rowcol_to_cell(sb0,c0+1,True,True),xl_rowcol_to_cell(sb0+3,c0+1,True,True))
+        ws.write(sb0+5,c0,"TOTAL SYSTEM BACKLOG",F["th"])
+        ws.write_formula(sb0+5,c0+1,"=SUM(%s)"%gt_rng,F["tdn"],0)
+        self.RR["_backlog_total_cell"]="Calculations!%s"%xl_rowcol_to_cell(sb0+5,c0+1,True,True)
+        r=sb0+8
+
+        # ---- Department League Table: composite score across TRIR/Training/Obs/CA per dept ----
+        dl0=r; depts=HD.DEPARTMENTS
+        ws.write(dl0-1,c0,"Department",F["th"]); ws.write(dl0-1,c0+1,"Recordable",F["th"])
+        ws.write(dl0-1,c0+2,"Training %",F["th"]); ws.write(dl0-1,c0+3,"Obs Closure %",F["th"])
+        ws.write(dl0-1,c0+4,"CA Closure %",F["th"]); ws.write(dl0-1,c0+5,"Score",F["th"])
+        ws.write(dl0-1,c0+6,"Adj",F["th"])
+        tr_sp=spec_of("training"); ob_sp=spec_of("hseobs"); ca_sp=spec_of("ca")
+        for i,d in enumerate(depts):
+            rr=dl0+i
+            ws.write(rr,c0,d,F["tdl"])
+            recd=('COUNTIFS(%s,"Lost Time Injury",%s,mCrit,%s,"%s")+COUNTIFS(%s,"Medical Treatment",%s,mCrit,%s,"%s")'
+                  '+COUNTIFS(%s,"Restricted Work",%s,mCrit,%s,"%s")+COUNTIFS(%s,"Fatality",%s,mCrit,%s,"%s")')%(
+                IClsD,IMD,IDD,d,IClsD,IMD,IDD,d,IClsD,IMD,IDD,d,IClsD,IMD,IDD,d)
+            ws.write_formula(rr,c0+1,"="+recd,F["tdn"],0)
+            trainc='IFERROR(COUNTIFS(%s,"Completed",%s,mCrit,%s,"%s")/COUNTIFS(%s,mCrit,%s,"%s")*100,0)'%(
+                rng(tr_sp,"Status"),rng(tr_sp,"Month"),rng(tr_sp,"Department"),d,rng(tr_sp,"Month"),rng(tr_sp,"Department"),d)
+            ws.write_formula(rr,c0+2,"="+trainc,F["tdp"],0)
+            obsc='IFERROR(COUNTIFS(%s,"Completed",%s,mCrit,%s,"%s")/COUNTIFS(%s,mCrit,%s,"%s")*100,0)'%(
+                rng(ob_sp,"Status"),rng(ob_sp,"Month"),rng(ob_sp,"Department"),d,rng(ob_sp,"Month"),rng(ob_sp,"Department"),d)
+            ws.write_formula(rr,c0+3,"="+obsc,F["tdp"],0)
+            cac='IFERROR(COUNTIFS(%s,"Completed",%s,mCrit,%s,"%s")/COUNTIFS(%s,mCrit,%s,"%s")*100,0)'%(
+                rng(ca_sp,"Status"),rng(ca_sp,"Month"),rng(ca_sp,"Department"),d,rng(ca_sp,"Month"),rng(ca_sp,"Department"),d)
+            ws.write_formula(rr,c0+4,"="+cac,F["tdp"],0)
+            tc=xl_rowcol_to_cell(rr,c0+2); oc=xl_rowcol_to_cell(rr,c0+3); cc_=xl_rowcol_to_cell(rr,c0+4); rc=xl_rowcol_to_cell(rr,c0+1)
+            ws.write_formula(rr,c0+5,"=MAX(0,MIN(100,ROUND(AVERAGE(%s,%s,%s)-%s*5,0)))"%(tc,oc,cc_,rc),F["tdn"],0)
+            ws.write_formula(rr,c0+6,"=%s+ROW()/100000"%xl_rowcol_to_cell(rr,c0+5),self._numfmt("0.00000"),0)
+        self.RR["_league_dept_lbl"]=self._a1(dl0,c0,dl0+len(depts)-1)
+        self.RR["_league_recordable"]=self._a1(dl0,c0+1,dl0+len(depts)-1)
+        self.RR["_league_train"]=self._a1(dl0,c0+2,dl0+len(depts)-1)
+        self.RR["_league_obs"]=self._a1(dl0,c0+3,dl0+len(depts)-1)
+        self.RR["_league_ca"]=self._a1(dl0,c0+4,dl0+len(depts)-1)
+        af=xl_rowcol_to_cell(dl0,c0+6,True,True); al=xl_rowcol_to_cell(dl0+len(depts)-1,c0+6,True,True)
+        nf_=xl_rowcol_to_cell(dl0,c0,True,True); nl=xl_rowcol_to_cell(dl0+len(depts)-1,c0,True,True)
+        sc0=c0+8
+        ws.write(dl0-1,sc0,"Rank Dept",F["th"]); ws.write(dl0-1,sc0+1,"Rank Score",F["th"])
+        for i in range(len(depts)):
+            rr=dl0+i; k=i+1
+            large="LARGE(%s:%s,%d)"%(af,al,k)
+            ws.write_formula(rr,sc0,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(nf_,nl,large,af,al),F["tdl"],0)
+            ws.write_formula(rr,sc0+1,"=INT(%s)"%large,F["tdn"],0)
+        self.RR["_league_lbl"]=self._a1(dl0,sc0,dl0+len(depts)-1)
+        self.RR["_league_val"]=self._a1(dl0,sc0+1,dl0+len(depts)-1)
+        r=dl0+len(depts)+2
+
+        # ---- Repeat-offender hotspot watchlists (top-5 departments by severity) ----
+        HOTSPOTS=[("jsa","cat","Risk Level",["Critical","High"]),
+                  ("hseobs","cat","Risk Level",["Critical","High"]),
+                  ("wpinsp","sum","Critical Findings",None),
+                  ("eqinsp","sum","Critical Findings",None),
+                  ("walk","sum","Critical Findings",None),
+                  ("unsafeact","cat","Risk Level",["Critical","High"]),
+                  ("unsafecond","cat","Risk Level",["Critical","High"]),
+                  ("nc","cat","Severity",["Major"]),
+                  ("swa","cat","Severity",["Critical","High"])]
+        for key,mode,field,severe in HOTSPOTS:
+            r=self._hotspot_block(ws,r,c0,spec_of(key),mode,field,severe,key+"_hotspot")
+
         return r
 
     def _top10_block(self, ws, r0, c0, title, spec, field, pool, tag):
@@ -1095,6 +1260,37 @@ class EHS:
         self.RR[tag+"_lbl"]="Calculations!$%s$%d:$%s$%d"%(lc,r0+1,lc,r0+len(items))
         self.RR[tag+"_val"]="Calculations!$%s$%d:$%s$%d"%(vc,r0+1,vc,r0+len(items))
         return r0+len(items)+2
+
+    def _hotspot_block(self, ws, r0, c0, spec, mode, field, severe_vals, tag, top_n=5):
+        """Top-N departments by High/Critical severity count (mode='cat') or a numeric
+        column sum (mode='sum') for one tracker - a repeat-offender watchlist. Deliberately
+        month-filtered only (mCrit), never department-filtered (dCrit), since the whole point
+        is comparing departments against each other."""
+        F=self.F; depts=HD.DEPARTMENTS
+        Mn=rng(spec,"Month"); Dp=rng(spec,"Department")
+        ws.write(r0-1,c0,"Department",F["th"]); ws.write(r0-1,c0+1,"Count",F["th"])
+        ws.write(r0-1,c0+2,"Adj",F["th"])
+        for i,d in enumerate(depts):
+            rr=r0+i
+            ws.write(rr,c0,d,F["tdl"])
+            if mode=="cat":
+                fsum="+".join('COUNTIFS(%s,"%s",%s,mCrit,%s,"%s")'%(rng(spec,field),v,Mn,Dp,d) for v in severe_vals)
+            else:
+                fsum='SUMIFS(%s,%s,mCrit,%s,"%s")'%(rng(spec,field),Mn,Dp,d)
+            ws.write_formula(rr,c0+1,"="+fsum,F["tdn"],0)
+            ws.write_formula(rr,c0+2,"=%s+ROW()/100000"%xl_rowcol_to_cell(rr,c0+1),self._numfmt("0.00000"),0)
+        af=xl_rowcol_to_cell(r0,c0+2,True,True); al=xl_rowcol_to_cell(r0+len(depts)-1,c0+2,True,True)
+        nf_=xl_rowcol_to_cell(r0,c0,True,True); nl=xl_rowcol_to_cell(r0+len(depts)-1,c0,True,True)
+        sc0=c0+4
+        ws.write(r0-1,sc0,"Rank Dept",F["th"]); ws.write(r0-1,sc0+1,"Rank Count",F["th"])
+        for i in range(top_n):
+            rr=r0+i; k=i+1
+            large="LARGE(%s:%s,%d)"%(af,al,k)
+            ws.write_formula(rr,sc0,"=INDEX(%s:%s,MATCH(%s,%s:%s,0))"%(nf_,nl,large,af,al),F["tdl"],0)
+            ws.write_formula(rr,sc0+1,"=INT(%s)"%large,F["tdn"],0)
+        self.RR[tag+"_lbl"]=self._a1(r0,sc0,r0+top_n-1)
+        self.RR[tag+"_val"]=self._a1(r0,sc0+1,r0+top_n-1)
+        return r0+len(depts)+2
 
     def _numfmt(self, nf):
         return self.wb.add_format({"font_name":"Segoe UI","font_size":9,"align":"center",

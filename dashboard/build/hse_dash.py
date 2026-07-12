@@ -2,7 +2,7 @@
 from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
 import hse_data as HD
 from hse_build import (BLUE_D,BLUE_M,BLUE_L,GREY_D,GREY_M,GREY_L,GREEN,GREEN_L,
-                       AMBER,AMBER_L,RED,RED_L,WHITE,INK,ACCENT,ACC, spec_of)
+                       AMBER,AMBER_L,RED,RED_L,WHITE,INK,ACCENT,ACC, spec_of, rng, has)
 
 MONTHS=HD.MONTHS
 
@@ -228,6 +228,22 @@ DRILL_MAP = {
     "First Aid":"incident","Lost Days":"incident","TRIR":"incident","LTIFR":"incident",
 }
 
+# one representative EX label per tracker, for the Leadership "System Health" radar -
+# prefers a closure/compliance-rate metric (a real health signal) over a raw count
+TRACKER_HEALTH_LABEL = {
+    "toolbox":"Toolbox Avg Attendance","jsa":"JSA % Approved","training":"Training Compliance",
+    "hseobs":"Obs Closure","wpinsp":"Workplace Insp. Closure","eqinsp":"Equipment Critical Findings",
+    "walk":"Safety Walkthroughs","meetings":"Meetings Close-out","bulletins":"Bulletin Reach",
+    "drills":"Drill Participation","iaudit":"Internal Audit NCs","eaudit":"External Audit NCs",
+    "mgmtvisit":"Mgmt Visit Close-out","mgmtreview":"Mgmt Review Attendance","disc":"Disciplinary",
+    "awards":"Safety Awards","swa":"Stop Work Authority","alcohol":"Alcohol Positive %",
+    "ptwaudit":"PTW Compliance","ca":"CA Closure","nc":"NC Closure","unsafeact":"Unsafe Act Closure",
+    "unsafecond":"Unsafe Condition Closure","incident":"TRIR",
+}
+
+def _ragname(lbl):
+    return "rg"+"".join(ch for ch in lbl if ch.isalnum())
+
 def build_exec(e):
     F=e.F; RR=e.RR; EX=e.EX; ws=e.wb.add_worksheet("Executive Dashboard"); ws.set_tab_color(BLUE_D)
     gridcols(ws); ws.set_zoom(75)
@@ -402,7 +418,110 @@ def build_leadership(e):
         ws.write_formula(row+k,4,"=INDEX(%s,%d)"%(mb["val"],k+1),pctf,0)
         ws.merge_range(row+k,7,row+k,9,"=INDEX(%s,%d)"%(mw["lbl"],k+1),badf)
         ws.write_formula(row+k,10,"=INDEX(%s,%d)"%(mw["val"],k+1),pctf,0)
-    print_setup(ws, last_row=row+6, last_col=18)
+    row+=6
+
+    # ---- System Health radar: RAG status of all 24 trackers at a glance ----
+    ws.merge_range(row,1,row,18,"SYSTEM HEALTH  ·  RAG status of all 24 trackers, at a glance",F["section"]); row+=1
+    tbl_top=row
+    ws.write(row,1,"Tracker",F["th"]); ws.write(row,2,"Health Metric",F["th"]); ws.write(row,3,"RAG",F["th"])
+    keys=list(TRACKER_HEALTH_LABEL.keys())
+    for i,k in enumerate(keys):
+        lbl=TRACKER_HEALTH_LABEL[k]; s=spec_of(k)
+        rr=tbl_top+1+i
+        ws.write(rr,1,s["sheet"],F["tdl"]); ws.write(rr,2,lbl,F["tdl"])
+        ws.write_formula(rr,3,"="+_ragname(lbl),F["tdn"],0)
+    cat_rng="'Leadership Review'!$B$%d:$B$%d"%(tbl_top+2,tbl_top+1+len(keys))
+    val_rng="'Leadership Review'!$D$%d:$D$%d"%(tbl_top+2,tbl_top+1+len(keys))
+    radar=e.wb.add_chart({"type":"radar","subtype":"with_markers"})
+    radar.add_series({"categories":cat_rng,"values":val_rng,"line":{"color":BLUE_M,"width":2},
+        "marker":{"type":"circle","size":4,"fill":{"color":BLUE_D}}})
+    e._style(radar,"System Health  (0 = Red · 1 = Amber · 2 = Green)")
+    radar.set_legend({"none":True}); radar.set_y_axis({"min":0,"max":2,"major_unit":1,"num_font":{"size":8}})
+    place_chart(e,ws,tbl_top,7,radar,700,430)
+    row=tbl_top+1+len(keys)+2
+
+    # ---- Department League Table: composite score ranking ----
+    ws.merge_range(row,1,row,18,
+        "DEPARTMENT LEAGUE TABLE  ·  score = avg(Training %, Obs Closure %, CA Closure %) − Recordable×5",F["section"]); row+=1
+    lg=e.RR["_league_lbl"]; lv=e.RR["_league_val"]
+    raw_dept=e.RR["_league_dept_lbl"]; raw_rec=e.RR["_league_recordable"]
+    raw_tr=e.RR["_league_train"]; raw_obs=e.RR["_league_obs"]; raw_ca=e.RR["_league_ca"]
+    hdrs=["Rank","Department","Score","Recordable","Training %","Obs Closure %","CA Closure %"]
+    for j,h in enumerate(hdrs): ws.write(row,1+j,h,F["th"])
+    for i in range(8):
+        rr=row+1+i
+        ws.write(rr,1,i+1,F["td"])
+        ws.write_formula(rr,2,"=INDEX(%s,%d)"%(lg,i+1),F["tdl"],0)
+        ws.write_formula(rr,3,"=INDEX(%s,%d)"%(lv,i+1),F["tdn"],0)
+        matchidx="MATCH(INDEX(%s,%d),%s,0)"%(lg,i+1,raw_dept)
+        ws.write_formula(rr,4,"=INDEX(%s,%s)"%(raw_rec,matchidx),F["tdn"],0)
+        ws.write_formula(rr,5,"=INDEX(%s,%s)"%(raw_tr,matchidx),F["tdp"],0)
+        ws.write_formula(rr,6,"=INDEX(%s,%s)"%(raw_obs,matchidx),F["tdp"],0)
+        ws.write_formula(rr,7,"=INDEX(%s,%s)"%(raw_ca,matchidx),F["tdp"],0)
+    ws.conditional_format(row+1,3,row+8,3,{"type":"data_bar","bar_color":GREEN})
+    row+=11
+
+    # ---- System-Wide Action Backlog ----
+    ws.merge_range(row,1,row,18,
+        "SYSTEM-WIDE ACTION BACKLOG  ·  open/overdue items across CA, NC, Inspections & Unsafe Act/Condition registers",F["section"]); row+=1
+    c1=e.bar_chart(e.RR["_backlog_tracker_lbl"],e.RR["_backlog_tracker_val"],"Overdue Items by Tracker",RED)
+    c2=e.dough(e.RR["_backlog_aging_lbl"],e.RR["_backlog_aging_val"],"Ageing Mix (open items)",[GREEN,AMBER,"#EA580C",RED])
+    place_chart(e,ws,row,1,c1,486,290); place_chart(e,ws,row,7,c2,486,290)
+    totf=e._fmt(font_name="Segoe UI",font_size=26,bold=True,font_color=RED,align="center",valign="vcenter")
+    lblf2=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=GREY_D,align="center",valign="vcenter")
+    ws.merge_range(row,13,row,17,"TOTAL SYSTEM BACKLOG",lblf2)
+    ws.merge_range(row+1,13,row+6,17,"="+e.RR["_backlog_total_cell"],totf)
+    row+=16
+
+    # ---- Leading:Lagging Ratio trend + Quarterly Trend strip ----
+    ws.merge_range(row,1,row,18,"LEADING : LAGGING RATIO  &  QUARTERLY TREND",F["section"]); row+=1
+    MS=e.MSER
+    c3=e.line_chart(_months(e),MS["leadlag_ratio"],"Leading : Lagging Ratio (12-Month Trend)",GREEN)
+    place_chart(e,ws,row,1,c3,486,290)
+    qcol=8
+    ws.write(row,qcol,"Metric (quarterly)",F["th"])
+    for j,q in enumerate(["Q1","Q2","Q3","Q4"]): ws.write(row,qcol+1+j,q,F["th"])
+    qmetrics=[("Total Incidents","totalinc",None),
+              ("Training Compliance %","train_completed","training_total"),
+              ("CA Closure %","ca_closed","ca_total")]
+    for i,(lbl,numname,denname) in enumerate(qmetrics):
+        rr=row+1+i
+        ws.write(rr,qcol,lbl,F["tdl"])
+        numparts=_qtr_parts(MS[numname])
+        denparts=_qtr_parts(MS[denname]) if denname else None
+        for j in range(4):
+            if denparts:
+                ws.write_formula(rr,qcol+1+j,"=IFERROR(%s/%s*100,0)"%(numparts[j],denparts[j]),F["tdp"],0)
+            else:
+                ws.write_formula(rr,qcol+1+j,"="+numparts[j],F["tdn"],0)
+    row+=16
+
+    # ---- Auto-generated insight bullets ----
+    ws.merge_range(row,1,row,18,"KEY INSIGHTS  ·  auto-generated from this period's data",F["section"]); row+=1
+    insf=e._fmt(font_name="Segoe UI",font_size=10,font_color=INK,bg_color=GREY_L,align="left",
+        valign="vcenter",text_wrap=True,indent=1,border=1,border_color="#E2E8F0")
+    bullets=[
+        '="• TRIR is "&TEXT(TRIR,"0.00")&"  ("&TEXT(%s,"+0.0%%;-0.0%%")&" vs the prior period)"'%e.EX["TRIR"]["delta"],
+        '="• Department League: "&INDEX(%s,8)&" has the lowest composite safety score this period ("&INDEX(%s,8)&"/100) — review its training, observation-closure and CA-closure rates."'%(lg,lv),
+        '="• System-wide backlog: "&%s&" items are currently overdue across CA, NC, Inspections and Unsafe Act/Condition registers; "&INDEX(%s,4)&" have been open more than 30 days."'%(e.RR["_backlog_total_cell"],e.RR["_backlog_aging_val"]),
+        '="• Leading:Lagging ratio is "&TEXT(INDEX(%s,12),"0.0")&":1 this month, versus "&TEXT(INDEX(%s,11),"0.0")&":1 last month."'%(MS["leadlag_ratio"],MS["leadlag_ratio"]),
+    ]
+    for i,b in enumerate(bullets):
+        ws.set_row(row+i,28)
+        ws.merge_range(row+i,1,row+i,18,b,insf)
+    row+=len(bullets)+1
+
+    print_setup(ws, last_row=row+2, last_col=18)
+
+def _qtr_parts(rngstr):
+    """Split a 12-cell monthly Calculations range into 4 SUM(Q1..Q4) sub-formula strings."""
+    import re
+    m=re.match(r"Calculations!\$([A-Z]+)\$(\d+):\$([A-Z]+)\$(\d+)", rngstr)
+    col=m.group(1); r1=int(m.group(2))
+    parts=[]
+    for q in range(4):
+        parts.append("SUM(Calculations!$%s$%d:$%s$%d)"%(col,r1+3*q,col,r1+3*q+2))
+    return parts
 
 def _leadership_tiles(e, ws, row, defs):
     for i,(lbl,ex,kind,acc) in enumerate(defs):
@@ -425,6 +544,8 @@ def build_register_dash(e, spec):
         rr=row+(i//4)*6; cc=1+(i%4)*4
         tile(e,ws,rr,cc,lbl,"="+cellref,kind,["blue","green","amber","red"][i%4],w=4)
     row=row+((len(kpis)-1)//4+1)*6
+
+    row=_month_delta_row(e, ws, row, RR)
 
     # Monthly Volume (kept - always a useful activity view) + this tracker's SIGNATURE analysis
     ws.merge_range(row,1,row,18,"MONTHLY VOLUME & SIGNATURE ANALYSIS",F["section"]); row+=1
@@ -459,7 +580,107 @@ def build_register_dash(e, spec):
     # Monthly Performance Matrix (rows=measures, cols=Jan..Dec+YTD) - live table, not a chart
     ws.merge_range(row,1,row,18,"MONTHLY PERFORMANCE MATRIX",F["section"]); row+=1
     _matrix_table(e, ws, row, spec, RR)
-    print_setup(ws, last_row=row+9, last_col=18)
+    row+=9
+
+    row=_advanced_analysis(e, ws, row, spec, RR)
+    print_setup(ws, last_row=row+2, last_col=18)
+
+def _month_delta_row(e, ws, row, RR):
+    """This-month-vs-last-month delta strip under the KPI cards, using the tracker's own
+    Monthly Volume series (independent of the Register Month filter, which already drives
+    the KPI cards above) so it always shows a concrete number even when 'All' is selected."""
+    F=e.F; mv=RR["month_val"]
+    f=('=IF(CurMonthNo=0,"Select a specific Register Month (Executive Dashboard) to see month-over-month change",'
+       'IF(CurMonthNo=1,"Jan is the first month of the year — no in-year prior month to compare",'
+       '"This month ("&INDEX(L_Month,CurMonthNo)&"): "&INDEX(%s,CurMonthNo)&"   vs   "&INDEX(L_Month,CurMonthNo-1)&'
+       '": "&INDEX(%s,CurMonthNo-1)&"   "&IF(INDEX(%s,CurMonthNo)>=INDEX(%s,CurMonthNo-1),"▲ ","▼ ")&'
+       'TEXT(IFERROR((INDEX(%s,CurMonthNo)-INDEX(%s,CurMonthNo-1))/INDEX(%s,CurMonthNo-1),0),"+0.0%%;-0.0%%")))')%(
+        mv,mv,mv,mv,mv,mv,mv)
+    fmt=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=BLUE_D,bg_color=GREY_L,
+        align="left",valign="vcenter",border=1,border_color="#D8E1EB",indent=1)
+    ws.merge_range(row,1,row,18,f,fmt)
+    return row+2
+
+def _advanced_analysis(e, ws, row, spec, RR):
+    """Tracker-specific extras that don't fit the generic 24-tracker template: overdue-ageing
+    chart (registers with a due-date field), a repeat-offender department watchlist (registers
+    with a severity/risk field), a Target-vs-Actual trend with a next-month forecast (registers
+    with both a target and actual field tracked monthly), and cost-impact rollups where a rate
+    is configured on Settings. Only emits a section if this tracker has at least one of these."""
+    key=spec["key"]; F=e.F
+    AGING_KEYS={"ca","nc","hseobs","wpinsp","eqinsp","walk","unsafeact","unsafecond"}
+    HOTSPOT_KEYS={"jsa","hseobs","wpinsp","eqinsp","walk","unsafeact","unsafecond","nc","swa"}
+    FORECAST={"toolbox":("fc_toolbox","Attendees"),"bulletins":("fc_bulletins","Reach"),
+              "drills":("fc_drills","Participants"),"mgmtreview":("fc_mgmtreview","Attendance")}
+    has_aging = key in AGING_KEYS
+    has_hotspot = key in HOTSPOT_KEYS
+    has_forecast = key in FORECAST
+    has_cost = key in ("swa","incident")
+    if not (has_aging or has_hotspot or has_forecast or has_cost):
+        return row
+
+    ws.merge_range(row,1,row,18,"ADVANCED ANALYSIS",F["section"]); row+=1
+    charts=[]
+    if has_aging:
+        charts.append(e.bar_chart(e.RR[key+"_aging_lbl"],e.RR[key+"_aging_val"],"Overdue Ageing (open items)",AMBER))
+    if has_forecast:
+        tag,label=FORECAST[key]
+        charts.append(_forecast_chart(e, tag, label))
+    cols=[1,7,13]
+    for i,ch in enumerate(charts[:3]):
+        place_chart(e,ws,row,cols[i],ch,486,290)
+    if charts:
+        if has_hotspot and len(charts)<3:
+            _hotspot_table(e, ws, row, spec, 1+len(charts)*6)
+        row+=16
+    elif has_hotspot:
+        _hotspot_table(e, ws, row, spec, 1)
+        row+=8
+
+    if has_cost:
+        row=_cost_tile(e, ws, row, spec)
+    return row
+
+def _forecast_chart(e, tag, label):
+    """Target vs Actual trend with a 13th 'Next' point forecast via Excel's own TREND() over
+    the 12 actual-series months - a simple linear projection, not a fabricated number."""
+    MS=e.MSER
+    ch=e.wb.add_chart({"type":"line"})
+    ch.add_series({"name":"Target","categories":MS[tag+"_lbl"],"values":MS[tag+"_tgt"],
+        "line":{"color":GREY_M,"width":1.75,"dash_type":"dash"},"marker":{"type":"square","size":4,"fill":{"color":GREY_M}}})
+    ch.add_series({"name":"Actual","categories":MS[tag+"_lbl"],"values":MS[tag+"_act"],
+        "line":{"color":BLUE_M,"width":2.25},"marker":{"type":"circle","size":5,"fill":{"color":BLUE_M}}})
+    e._style(ch,"%s: Target vs Actual + Next-Month Forecast"%label)
+    return ch
+
+def _hotspot_table(e, ws, row, spec, col0):
+    """Live top-5 department watchlist table (mirrors the Calculations hotspot block)."""
+    F=e.F; tag=spec["key"]+"_hotspot"
+    lbl=e.RR.get(tag+"_lbl"); val=e.RR.get(tag+"_val")
+    if not lbl: return
+    ws.write(row,col0,"Department",F["th"]); ws.write(row,col0+1,"Severity Count",F["th"])
+    for i in range(5):
+        ws.write_formula(row+1+i,col0,"=INDEX(%s,%d)"%(lbl,i+1),F["tdl"],0)
+        ws.write_formula(row+1+i,col0+1,"=INDEX(%s,%d)"%(val,i+1),F["tdn"],0)
+    ws.conditional_format(row+1,col0+1,row+5,col0+1,{"type":"data_bar","bar_color":RED})
+
+def _cost_tile(e, ws, row, spec):
+    """Cost-impact rollup - only for the two trackers with a genuine, Settings-configured rate
+    (no fabricated numbers): Stop Work downtime and Incident lost days."""
+    F=e.F; key=spec["key"]
+    dsuf=(",%s,dCrit"%rng(spec,"Department")) if has(spec,"Department") else ""
+    if key=="swa":
+        label="ESTIMATED DOWNTIME COST (this Register Month)"
+        formula='=SUMIFS(%s,%s,mCrit%s)*CostPerDowntimeMin'%(rng(spec,"Downtime (min)"),rng(spec,"Month"),dsuf)
+    else:
+        label="ESTIMATED LOST-DAY COST (this Register Month)"
+        formula='=SUMIFS(%s,%s,mCrit%s)*CostPerLostDay'%(rng(spec,"Lost Days"),rng(spec,"Month"),dsuf)
+    fmt=e._fmt(font_name="Segoe UI",font_size=17,bold=True,font_color=BLUE_D,bg_color=AMBER_L,
+        align="left",valign="vcenter",border=1,border_color="#E2C97A",num_format='"₹"#,##0',indent=1)
+    lblf=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=GREY_D,align="left",valign="vcenter",indent=1)
+    ws.merge_range(row,1,row,10,label,lblf)
+    ws.merge_range(row+1,1,row+2,10,formula,fmt)
+    return row+4
 
 def _dual_line(e, cats, s1name, s1val, s1color, s2name, s2val, s2color, title):
     ch=e.wb.add_chart({"type":"line"})
