@@ -3,7 +3,7 @@
 RCPL Integrated EHS Management System  ->  macro-enabled workbook (.xlsm)
 
 Adopts the structure/taxonomy of HSE_Full_System.xlsx:
-  24 registers (exact headers) + 24 per-register interactive dashboards
+  25 registers (exact headers) + 25 per-register interactive dashboards
   + Executive Dashboard + Leadership Review + Master Data + Settings + Help,
 with a live rollup engine, native charts, conditional formatting and working VBA.
 """
@@ -24,6 +24,12 @@ AMBER="#F59E0B"; AMBER_L="#FEF3C7"; RED="#DC2626"; RED_L="#FEE2E2"
 WHITE="#FFFFFF"; INK="#1F2937"; ACCENT="#D71920"; CARDBG="#FFFFFF"
 ACC={"blue":BLUE_M,"green":GREEN,"red":RED,"amber":AMBER,"grey":GREY_M}
 
+# Dark navy/teal palette (dashboards only - registers/Master/Settings/Calculations stay light)
+NAVY_BG="#0B1220"; NAVY_CARD="#111C33"; NAVY_CARD2="#162440"; BORDER="#22314F"
+TEAL="#14B8A6"; GOLD="#F5A524"; PURPLE="#8B5CF6"; CORAL="#F0625A"; ORANGE="#F2994A"
+TXT="#E5E9F0"; TXT_MUTED="#93A2BE"
+DACC={"blue":TEAL,"green":TEAL,"red":CORAL,"amber":GOLD,"grey":TXT_MUTED,"purple":PURPLE}
+
 CLOSED_VALUES = {"Closed","Completed","Resolved","Approved","Compliant","Issued",
                  "Acknowledged","Presented"}
 OPEN_VALUES = {"Open","In Progress","Overdue","Pending","Pending Review","Scheduled",
@@ -43,6 +49,8 @@ class EHS:
         self.wb.set_calc_mode("auto")
         self.F = {}
         self._formats()
+        self.FD = {}
+        self._formats_dark()
         self.RR = {}   # per-register chart/kpi ranges
 
     # ---------------------------------------------------------------- formats
@@ -120,14 +128,63 @@ class EHS:
         self.F[key]=(strip,tt,vv,ss)
         return self.F[key]
 
+    # ---------------------------------------------------------------- dark-theme dashboard formats
+    def _formats_dark(self):
+        FD=self.FD; seg="Segoe UI"
+        FD["title"]=self._fmt(font_name=seg,font_size=22,bold=True,font_color=TXT,
+            bg_color=NAVY_CARD,align="left",valign="vcenter")
+        FD["sub"]=self._fmt(font_name=seg,font_size=10,font_color=TEAL,bg_color=NAVY_CARD,
+            align="left",valign="vcenter")
+        FD["accent"]=self._fmt(bg_color=TEAL)
+        FD["section"]=self._fmt(font_name=seg,font_size=12,bold=True,font_color=TEAL,bg_color=NAVY_BG,
+            align="left",valign="vcenter",bottom=2,border_color=TEAL)
+        FD["th"]=self._fmt(font_name=seg,font_size=9,bold=True,font_color=NAVY_BG,bg_color=TEAL,
+            align="center",valign="vcenter",border=1,border_color=NAVY_BG,text_wrap=True)
+        FD["td"]=self._fmt(font_name=seg,font_size=9,font_color=TXT,bg_color=NAVY_CARD,
+            align="center",valign="vcenter",border=1,border_color=BORDER)
+        FD["tdl"]=self._fmt(font_name=seg,font_size=9,font_color=TXT,bg_color=NAVY_CARD,
+            align="left",valign="vcenter",border=1,border_color=BORDER)
+        FD["tdn"]=self._fmt(font_name=seg,font_size=9,font_color=TXT,bg_color=NAVY_CARD,
+            align="center",valign="vcenter",border=1,border_color=BORDER,num_format="#,##0")
+        FD["tdp"]=self._fmt(font_name=seg,font_size=9,font_color=TXT,bg_color=NAVY_CARD,
+            align="center",valign="vcenter",border=1,border_color=BORDER,num_format='0.0"%"')
+        FD["note"]=self._fmt(font_name=seg,font_size=9,font_color=TXT_MUTED,bg_color=NAVY_BG,
+            text_wrap=True,valign="top")
+        FD["refl"]=self._fmt(font_name=seg,font_size=9,italic=True,font_color=TXT_MUTED,bg_color=NAVY_BG,
+            align="right",valign="vcenter")
+        FD["refv"]=self._fmt(font_name=seg,font_size=9,bold=True,font_color=TEAL,bg_color=NAVY_BG,
+            align="left",valign="vcenter",num_format="dd-mmm-yyyy hh:mm")
+        FD["set_val"]=self._fmt(font_name=seg,font_size=10,bold=True,font_color=NAVY_BG,align="center",
+            valign="vcenter",bg_color=GOLD,border=1,border_color=GOLD,locked=False)
+        FD["heat"]=self._fmt(font_name=seg,font_size=9,bold=True,font_color=NAVY_BG,align="center",
+            valign="vcenter",border=1,border_color=NAVY_BG,num_format="0")
+        FD["bodyb"]=self._fmt(font_name=seg,font_size=10,bold=True,font_color=TXT,bg_color=NAVY_BG,valign="top")
+        FD["bg"]=self._fmt(bg_color=NAVY_BG)
+
+    def cardfmt_dark(self, accent, kind):
+        key=("cardD",accent,kind)
+        if key in self.FD: return self.FD[key]
+        seg="Segoe UI"
+        strip=self._fmt(bg_color=DACC[accent])
+        tt=self._fmt(font_name=seg,font_size=8.5,bold=True,font_color=TXT_MUTED,bg_color=NAVY_CARD,
+            align="left",valign="vcenter",left=1,right=1,border_color=BORDER)
+        nf={"num":"#,##0","dec":"0.00","pct":'0.0"%"'}[kind]
+        vv=self._fmt(font_name=seg,font_size=19,bold=True,font_color=TXT,bg_color=NAVY_CARD,
+            align="left",valign="vcenter",num_format=nf,left=1,right=1,border_color=BORDER)
+        ss=self._fmt(font_name=seg,font_size=8,font_color=TXT_MUTED,bg_color=NAVY_CARD,align="left",
+            valign="vcenter",left=1,right=1,bottom=1,border_color=BORDER)
+        self.FD[key]=(strip,tt,vv,ss)
+        return self.FD[key]
+
     # ---------------------------------------------------------------- charts
     def _style(self, ch, title):
-        ch.set_title({"name":title,"name_font":{"name":"Segoe UI","size":10.5,"bold":True,"color":BLUE_D}})
-        ch.set_chartarea({"border":{"color":"#E2E8F0"},"fill":{"color":WHITE}})
-        ch.set_plotarea({"fill":{"color":WHITE}})
-        ch.set_legend({"position":"bottom","font":{"size":8}})
-        ch.set_x_axis({"num_font":{"size":8},"line":{"color":"#CBD5E1"}})
-        ch.set_y_axis({"num_font":{"size":8},"major_gridlines":{"visible":True,"line":{"color":"#EEF2F7"}}})
+        # dashboards only call this (registers have no charts), so it's always dark-themed
+        ch.set_title({"name":title,"name_font":{"name":"Segoe UI","size":10.5,"bold":True,"color":TXT}})
+        ch.set_chartarea({"border":{"color":BORDER},"fill":{"color":NAVY_CARD2}})
+        ch.set_plotarea({"fill":{"color":NAVY_CARD2}})
+        ch.set_legend({"position":"bottom","font":{"size":8,"color":TXT_MUTED}})
+        ch.set_x_axis({"num_font":{"size":8,"color":TXT_MUTED},"line":{"color":BORDER}})
+        ch.set_y_axis({"num_font":{"size":8,"color":TXT_MUTED},"major_gridlines":{"visible":True,"line":{"color":BORDER}}})
     def col_chart(self,cats,series,title,stacked=False):
         ch=self.wb.add_chart({"type":"column","subtype":"stacked" if stacked else None})
         for nm,v,c in series:
@@ -352,7 +409,7 @@ class EHS:
         ws.hide_gridlines(2); ws.set_column("A:A",2); ws.set_column("B:B",22); ws.set_column("C:J",14)
         ws.write("B2","❓  Help & User Guide — Integrated EHS Management System", F["h1"])
         ws.write_url("B3","internal:'Home'!A1",F["h2"],"⌂ Back to Home")
-        rows=[("Purpose","Single-workbook EHS system: 24 registers, each with its own live dashboard, plus Executive & Leadership rollups."),
+        rows=[("Purpose","Single-workbook EHS system: 25 registers, each with its own live dashboard, plus Executive & Leadership rollups."),
               ("Enter data","Open any register (colored tab), type new rows under the table. Blue = input, Gray = auto-calculated."),
               ("Dropdowns","Driven by the Master Data sheet — edit a list there and every register dropdown updates."),
               ("Filters","Executive Dashboard has Month & Department drop-downs that drive the rollups."),
@@ -1086,6 +1143,23 @@ class EHS:
         self.RR["_ptw_type_lbl"]=self._a1(p0,c0,p0+6); self.RR["_ptw_type_val"]=self._a1(p0,c0+1,p0+6)
         r=p0+9
 
+        # ---- True 5x5 Likelihood x Consequence Risk Matrix (JSA Risk Assessment) ----
+        jsa=spec_of("jsa")
+        rm0=r
+        ws.write(rm0-1,c0,"L \\ C",F["th"])
+        for j in range(5): ws.write(rm0-1,c0+1+j,j+1,F["th"])
+        LK=rng(jsa,"Likelihood"); CQ=rng(jsa,"Consequence")
+        for i in range(5):
+            lik=5-i   # row 0 = Likelihood 5 (Almost Certain) at top, down to 1 (Rare)
+            rr=rm0+i
+            ws.write(rr,c0,lik,F["th"])
+            for j in range(5):
+                cons=j+1
+                ws.write_formula(rr,c0+1+j,'=COUNTIFS(%s,%d,%s,%d,%s,mCrit,%s,dCrit)'%(
+                    LK,lik,CQ,cons,rng(jsa,"Month"),rng(jsa,"Department")),F["heat"],0)
+        self.RR["_riskmatrix_top"]=rm0; self.RR["_riskmatrix_c0"]=c0
+        r=rm0+7
+
         # Training pass rate % by Training Type
         t0=r; st=spec_of("training")
         ws.write(t0-1,c0,"Training Type",F["th"]); ws.write(t0-1,c0+1,"Pass Rate %",F["th"])
@@ -1629,6 +1703,15 @@ class EHS:
                     +"+"+cnt("Classification","Restricted Work")+"+"+cnt("Classification","Fatality")),
                 ("LTI+Fatality","num",cnt("Classification","Lost Time Injury")+"+"+cnt("Classification","Fatality")),
                 ("Avg Close (d)","num",'IFERROR(AVERAGEIFS(%s,%s,"Closed",%s,mCrit%s),0)'%(IAge,IStat,IM,dsuf))]
+        elif key=="environment":
+            defs=[("Total Records","num",total),
+                ("Waste Generated (kg)","num",ssum("Waste Generated (kg)")),
+                ("Waste Recycled (kg)","num",ssum("Waste Recycled (kg)")),
+                ("Avg Recycle Rate","pct",savg("Recycle Rate %")),
+                ("Energy (kWh)","num",ssum("Energy Consumption (kWh)")),
+                ("Water (m3)","num",ssum("Water Consumption (m3)")),
+                ("Fuel (L)","num",ssum("Fuel Consumption (L)")),
+                ("Hazardous Waste Events","num",cnt("Waste Type","Hazardous Waste"))]
         else:
             raise KeyError("no KPI card definitions for tracker key %r" % key)
         return [(lbl,f,kind) for lbl,kind,f in defs][:8]
@@ -1653,13 +1736,13 @@ class EHS:
 
     # ---------------------------------------------------------------- data quality
     def write_data_quality(self):
-        """Pure-formula integrity checks across all 24 registers: blank required fields,
+        """Pure-formula integrity checks across all 25 registers: blank required fields,
         duplicate IDs, dates outside the reporting year, and end-date-before-start-date
         logic errors - catches bad manual entry, doesn't just trust the data."""
         F=self.F; ws=self.wb.add_worksheet("Data Quality"); ws.set_tab_color(RED)
         ws.hide_gridlines(2); ws.set_column("A:A",2); ws.set_column("B:B",26)
         for cc in range(2,10): ws.set_column(cc,cc,15)
-        ws.merge_range("B2:J2","🔎  DATA QUALITY — automatic integrity checks across all 24 registers", F["section"])
+        ws.merge_range("B2:J2","🔎  DATA QUALITY — automatic integrity checks across all 25 registers", F["section"])
         ws.write("B3","Recalculates on every Refresh. A register only needs attention if a count is greater than 0.",F["note"])
         hdrs=["Register","Records","Blank Dept","Blank Date","Duplicate IDs","Outside Report Year","Date-Logic Issues","Flag"]
         for j,h in enumerate(hdrs): ws.write(4,1+j,h,F["th"])
@@ -1762,7 +1845,7 @@ class EHS:
     # ---------------------------------------------------------------- change log
     def write_change_log(self):
         """Empty audit-trail sheet, appended to by the Workbook_SheetChange VBA handler
-        whenever someone edits a cell on any of the 24 registers - who, what, when, old/new
+        whenever someone edits a cell on any of the 25 registers - who, what, when, old/new
         value. Nothing to pre-fill; the log only grows as the workbook is actually used."""
         F=self.F; ws=self.wb.add_worksheet("Change Log"); ws.set_tab_color(GREY_D)
         ws.hide_gridlines(2); ws.set_column("A:A",2); ws.set_column("B:B",20)

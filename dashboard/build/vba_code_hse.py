@@ -36,7 +36,7 @@ End Sub
 ' CHANGE LOG (audit trail)
 '   SelectionChange caches the value of the cell about to be
 '   edited; SheetChange then logs old -> new to "Change Log"
-'   whenever the edit is on one of the 24 registers. Only
+'   whenever the edit is on one of the 25 registers. Only
 '   single-cell edits get a real Old Value (multi-cell pastes
 '   log "(n/a)" for Old Value - see modEHS.LogChange).
 '==========================================================

@@ -87,6 +87,11 @@ UNSAFE_COND_TYPES = ["Slippery Floor","Poor Housekeeping","Inadequate Lighting",
 ROOT_CAUSES = ["Human Error","Unsafe Act","Unsafe Condition","Inadequate Procedure",
                "Lack of Training","Equipment Failure","PPE Not Used","Poor Housekeeping"]
 
+WASTE_TYPES = ["General Waste","Hazardous Waste","E-Waste","Plastic","Metal Scrap","Organic/Food Waste"]
+ENV_REMARKS = ["Within permitted limits","Segregation improved this month","Recycling vendor collection delayed",
+    "New effluent treatment measure adopted","Energy-saving initiative in progress","No deviation observed",
+    "Awaiting pollution board clearance","Water reuse system commissioned"]
+
 # Per-tracker Status value pools + weights, matched to the client reference dashboard
 # (Share_HSE_Full_System2.xlsx) so its exact KPI-card labels are meaningful, not cosmetic.
 STATUS_POOLS = {
@@ -121,7 +126,7 @@ REGISTERS = [
  {"key":"jsa","sheet":"JSA Risk Assessment","emoji":"⚠️","code":"JSA",
   "headers":["S.No","JSA No.","Date","Month","Task/Activity","Department","Location","Assessed By",
     "Approved By","Risk Level","Hazards Identified","Assessment Type","Approval Status",
-    "Controls Implemented","Compliance"],
+    "Controls Implemented","Compliance","Likelihood","Consequence"],
   "auto":{},"cat":"Risk Level","cat2":"Assessment Type","status":"Approval Status"},
  {"key":"training","sheet":"Training","emoji":"🎓","code":"TRN",
   "headers":["S.No","Training ID","Date","Month","Course Name","Training Type","Department",
@@ -231,6 +236,12 @@ REGISTERS = [
     "Lost Days","Corrective Action","Preventive Action","Responsible","Target Date","Closure Date",
     "Status","Ageing (Days)","Evidence Link"],
   "auto":{},"cat":"Classification","cat2":"Incident Type","status":"Status"},
+ {"key":"environment","sheet":"Environmental Perf","emoji":"🌱","code":"ENV",
+  "headers":["S.No","Record No.","Date","Month","Department","Location","Waste Type",
+    "Waste Generated (kg)","Waste Recycled (kg)","Recycle Rate %",
+    "Energy Consumption (kWh)","Water Consumption (m3)","Fuel Consumption (L)","Remarks"],
+  "auto":{"Recycle Rate %":("Waste Recycled (kg)","Waste Generated (kg)")},
+  "cat":"Waste Type","cat2":None,"status":None},
 ]
 
 # fix emoji typo
@@ -278,6 +289,24 @@ def gen_value(header, d, rownum, code, dept, key=None):
                               [0.35,0.40,0.25])[0]
     if h in ("Risk Level","Risk Rating","Severity"):
         return random.choices(["Critical","High","Medium","Low"],[0.06,0.20,0.42,0.32])[0]
+    # 5x5 Likelihood x Consequence risk-matrix inputs (JSA Risk Assessment only)
+    if h in ("Likelihood","Consequence") and key == "jsa":
+        return random.choices([1,2,3,4,5],[0.30,0.28,0.22,0.13,0.07])[0]
+    # Environmental Performance register
+    if h == "Waste Type" and key == "environment":
+        return random.choice(WASTE_TYPES)
+    if h == "Waste Generated (kg)" and key == "environment":
+        return random.randint(300,3000)
+    if h == "Waste Recycled (kg)" and key == "environment":
+        return 0   # correlated to Waste Generated in a post-process pass, see generate()
+    if h == "Energy Consumption (kWh)" and key == "environment":
+        return random.randint(5000,50000)
+    if h == "Water Consumption (m3)" and key == "environment":
+        return random.randint(100,2000)
+    if h == "Fuel Consumption (L)" and key == "environment":
+        return random.randint(200,5000)
+    if h == "Remarks" and key == "environment":
+        return random.choice(ENV_REMARKS)
     # meaningful "type" phrase for Unsafe Act / Unsafe Condition Description (used as category)
     if h == "Description" and key == "unsafeact":
         return random.choice(UNSAFE_ACT_TYPES)
@@ -343,6 +372,12 @@ def generate(spec, n=48):
         dept = random.choice(DEPARTMENTS)
         row = [gen_value(h, d, i+1, spec["code"], dept, spec["key"]) for h in headers]
         rows.append(row)
+    if spec["key"] == "environment":
+        # correlate Waste Recycled to Waste Generated (a realistic 35-85% recycle rate),
+        # since gen_value() generates each column independently with no row context
+        gi = headers.index("Waste Generated (kg)"); ri = headers.index("Waste Recycled (kg)")
+        for r in rows:
+            r[ri] = round(r[gi] * random.uniform(0.35,0.85))
     rows.sort(key=lambda r: r[headers.index("Month")] and MONTHS.index(r[headers.index("Month")]))
     # re-number S.No
     for i,r in enumerate(rows):

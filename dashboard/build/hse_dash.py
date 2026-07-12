@@ -2,7 +2,9 @@
 from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
 import hse_data as HD
 from hse_build import (BLUE_D,BLUE_M,BLUE_L,GREY_D,GREY_M,GREY_L,GREEN,GREEN_L,
-                       AMBER,AMBER_L,RED,RED_L,WHITE,INK,ACCENT,ACC, spec_of, rng, has)
+                       AMBER,AMBER_L,RED,RED_L,WHITE,INK,ACCENT,ACC,
+                       NAVY_BG,NAVY_CARD,NAVY_CARD2,BORDER,TEAL,GOLD,PURPLE,CORAL,ORANGE,TXT,TXT_MUTED,DACC,
+                       spec_of, rng, has)
 
 MONTHS=HD.MONTHS
 
@@ -18,16 +20,17 @@ def build(e):
         build_register_dash(e, spec)
 
 # ---- shared pieces -------------------------------------------------------
-def gridcols(ws):
-    ws.set_column("A:A",2.0)
-    for c in range(1,19): ws.set_column(c,c,8.8)
+def gridcols(ws, e=None):
+    bg = e.FD["bg"] if e else None
+    ws.set_column("A:A",2.0,bg)
+    for c in range(1,19): ws.set_column(c,c,8.8,bg)
 
 def header(e, ws, emoji, title, subtitle):
-    F=e.F; ws.hide_gridlines(2); ws.set_row(0,6)
+    F=e.FD; ws.hide_gridlines(2); ws.set_row(0,6)
     ws.merge_range(1,1,3,12, "%s  %s"%(emoji,title), F["title"])
     ws.merge_range(4,1,4,12, subtitle, F["sub"])
-    logo=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=ACCENT,bg_color=WHITE,
-        align="center",valign="vcenter",border=2,border_color=WHITE)
+    logo=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=NAVY_BG,bg_color=TEAL,
+        align="center",valign="vcenter",border=2,border_color=NAVY_BG)
     ws.merge_range(1,13,4,18,"RCPL  ·  campa", logo)
     ws.merge_range(5,1,5,18,"",F["accent"]); ws.set_row(5,3)
     ws.write(6,14,"Last Refresh:",F["refl"]); ws.write_formula(6,16,"=LastRefresh",F["refv"],0)
@@ -39,9 +42,9 @@ def header(e, ws, emoji, title, subtitle):
     return 8
 
 def navchips(e, ws, row, extra=None):
-    F=e.F
-    chip=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=WHITE,bg_color=BLUE_M,
-        align="center",valign="vcenter",border=1,border_color=WHITE)
+    F=e.FD
+    chip=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=NAVY_BG,bg_color=TEAL,
+        align="center",valign="vcenter",border=1,border_color=NAVY_BG)
     ws.write_url(row,1,"internal:'Home'!A1",chip,"⌂ Home")
     ws.write_url(row,2,"internal:'Executive Dashboard'!A1",chip,"Executive")
     ws.merge_range(row,3,row,4,"",chip); ws.write_url(row,3,"internal:'Leadership Review'!A1",chip,"Leadership")
@@ -50,7 +53,7 @@ def navchips(e, ws, row, extra=None):
     return row+2
 
 def tile(e, ws, r, c, label, valformula, kind, accent, w=3):
-    strip,tt,vv,ss=e.cardfmt(accent, kind)
+    strip,tt,vv,ss=e.cardfmt_dark(accent, kind)
     ws.merge_range(r,c,r,c+w-1,"",strip); ws.set_row(r,4)
     ws.merge_range(r+1,c,r+1,c+w-1,label.upper(),tt)
     ws.merge_range(r+2,c,r+3,c+w-1,valformula,vv)
@@ -60,8 +63,8 @@ def vtile(e, ws, r, c, label, ex, kind, accent, w=3, drillsheet=None):
     """RCPL-style KPI card: strip colour = live RAG-vs-target status, number = current value,
     corner = prior value, bottom row = period-on-period variance (▲/▼, polarity-coloured),
     plus a 12-month sparkline. Optionally hyperlinked to a tracker dashboard for drill-down."""
-    strip,tt,vv,ss=e.cardfmt(accent, kind)
-    neutral=e._fmt(bg_color=GREY_M)
+    strip,tt,vv,ss=e.cardfmt_dark(accent, kind)
+    neutral=e._fmt(bg_color=BORDER)
     ws.merge_range(r,c,r,c+w-1,"",neutral); ws.set_row(r,4)
     if "rag" in ex:
         ws.conditional_format(r,c,r,c+w-1,{"type":"formula","criteria":"=%s=2"%ex["ragname"],
@@ -80,16 +83,16 @@ def vtile(e, ws, r, c, label, ex, kind, accent, w=3, drillsheet=None):
         ws.write_blank(r+3,c+w-1,"",vv)
         ws.add_sparkline(r+3,c+w-1,{"range":ex["spark"],"type":"line",
             "series_color":ACC[accent],"high_point":True,"low_point":True})
-    vgood=e._fmt(font_name="Segoe UI",font_size=8,bold=True,font_color=GREEN,bg_color=WHITE,align="left",
-        valign="vcenter",left=1,right=1,bottom=1,border_color="#E2E8F0")
+    vgood=e._fmt(font_name="Segoe UI",font_size=8,bold=True,font_color=GREEN,bg_color=NAVY_CARD,align="left",
+        valign="vcenter",left=1,right=1,bottom=1,border_color=BORDER)
     ws.merge_range(r+4,c,r+4,c+w-1,
         '=IF(%s=0,IF(%s>0,"▲ new","● flat"),IF(%s=%s,"● flat",'
         '(IF(%s>%s,"▲ ","▼ "))&TEXT(ABS(%s),"0.0%%")&" vs prior"))'%(
         ex["prior"],ex["cur"],ex["cur"],ex["prior"],ex["cur"],ex["prior"],ex["delta"]),
         vgood)
     ws.conditional_format(r+4,c,r+4,c+w-1,{"type":"formula","criteria":"=%s<0"%ex["goodname"],
-        "format":e._fmt(font_name="Segoe UI",font_size=8,bold=True,font_color=RED,bg_color=WHITE,
-        align="left",valign="vcenter",left=1,right=1,bottom=1,border_color="#E2E8F0")})
+        "format":e._fmt(font_name="Segoe UI",font_size=8,bold=True,font_color=RED,bg_color=NAVY_CARD,
+        align="left",valign="vcenter",left=1,right=1,bottom=1,border_color=BORDER)})
 
 def print_setup(ws, last_row=60, last_col=18):
     """Landscape, fit-to-1-page-wide, bounded print area so PDF/Print exports read as clean pages."""
@@ -103,10 +106,10 @@ def place_chart(e, ws, r, c, ch, w=470, h=260):
 
 # ---- Cover Page (for the Board Pack PDF export) --------------------------
 def build_cover(e):
-    F=e.F; ws=e.wb.add_worksheet("Cover Page"); ws.set_tab_color(BLUE_D)
-    ws.hide_gridlines(2); ws.set_column("A:A",3); ws.set_column("B:M",10); ws.set_zoom(100)
-    big=e._fmt(font_name="Segoe UI",font_size=32,bold=True,font_color=WHITE,bg_color=BLUE_D,align="center",valign="vcenter")
-    sub=e._fmt(font_name="Segoe UI",font_size=13,font_color="#CFE0F0",bg_color=BLUE_D,align="center",valign="vcenter")
+    F=e.FD; ws=e.wb.add_worksheet("Cover Page"); ws.set_tab_color(TEAL)
+    ws.hide_gridlines(2); ws.set_column("A:A",3,F["bg"]); ws.set_column("B:M",10,F["bg"]); ws.set_zoom(100)
+    big=e._fmt(font_name="Segoe UI",font_size=32,bold=True,font_color=TXT,bg_color=NAVY_CARD,align="center",valign="vcenter")
+    sub=e._fmt(font_name="Segoe UI",font_size=13,font_color=TEAL,bg_color=NAVY_CARD,align="center",valign="vcenter")
     ws.set_row(2,10)
     for r in range(0,16): ws.set_row(r,26)
     ws.merge_range("B4:M9","",big); ws.write_url("B4","internal:'Home'!A1",big,"RCPL INTEGRATED EHS MANAGEMENT SYSTEM")
@@ -123,7 +126,7 @@ def build_cover(e):
            ("Training Compliance",ex["Training Compliance"]["cur"],"pct")]
     for i,(lbl,cell,kind) in enumerate(heads):
         cc=3+i*3
-        strip,tt,vv,ss=e.cardfmt(["red","red","amber","green"][i],kind)
+        strip,tt,vv,ss=e.cardfmt_dark(["red","red","amber","green"][i],kind)
         ws.merge_range(r,cc,r,cc+2,"",strip); ws.set_row(r,4)
         ws.merge_range(r+1,cc,r+1,cc+2,lbl.upper(),tt)
         ws.merge_range(r+2,cc,r+3,cc+2,"="+cell,vv)
@@ -137,23 +140,23 @@ def build_cover(e):
 
 # ---- Home ----------------------------------------------------------------
 def build_home(e):
-    F=e.F; ws=e.wb.add_worksheet("Home"); ws.set_tab_color(BLUE_D)
-    ws.hide_gridlines(2); ws.set_column("A:A",2); ws.set_column("B:M",11); ws.set_zoom(100)
+    F=e.FD; ws=e.wb.add_worksheet("Home"); ws.set_tab_color(TEAL)
+    ws.hide_gridlines(2); ws.set_column("A:A",2,F["bg"]); ws.set_column("B:M",11,F["bg"]); ws.set_zoom(100)
     ws.set_row(1,8)
-    big=e._fmt(font_name="Segoe UI",font_size=30,bold=True,font_color=WHITE,bg_color=BLUE_D,align="center",valign="vcenter")
-    sub=e._fmt(font_name="Segoe UI",font_size=12,font_color="#CFE0F0",bg_color=BLUE_D,align="center",valign="vcenter")
+    big=e._fmt(font_name="Segoe UI",font_size=30,bold=True,font_color=TXT,bg_color=NAVY_CARD,align="center",valign="vcenter")
+    sub=e._fmt(font_name="Segoe UI",font_size=12,font_color=TEAL,bg_color=NAVY_CARD,align="center",valign="vcenter")
     ws.merge_range("B3:M5","RCPL INTEGRATED EHS MANAGEMENT SYSTEM",big)
-    ws.merge_range("B6:M7","Reliance Consumer Products Ltd  ·  Campa Cola CSD Plant  ·  24 Registers · 24 Dashboards",sub)
+    ws.merge_range("B6:M7","Reliance Consumer Products Ltd  ·  Campa Cola CSD Plant  ·  25 Registers · 25 Dashboards",sub)
     ws.merge_range("B8:M8","",F["accent"]); ws.set_row(7,4)
     import datetime
     ws.write("I10","Last Refresh:",F["refl"]); ws.write_datetime("K10",datetime.datetime.now(),F["refv"])
     e.wb.define_name("LastRefresh","='Home'!$K$10")
     # top-level nav
     ws.merge_range("B11:M11","EXECUTIVE VIEWS",F["section"])
-    tilef=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=WHITE,bg_color=BLUE_D,
-        align="center",valign="vcenter",border=2,border_color=WHITE)
-    tilef2=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=WHITE,bg_color=ACCENT,
-        align="center",valign="vcenter",border=2,border_color=WHITE)
+    tilef=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=NAVY_BG,bg_color=TEAL,
+        align="center",valign="vcenter",border=2,border_color=NAVY_BG)
+    tilef2=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=NAVY_BG,bg_color=CORAL,
+        align="center",valign="vcenter",border=2,border_color=NAVY_BG)
     ws.merge_range("B12:F13","",tilef); ws.write_url("B12","internal:'Executive Dashboard'!A1",tilef,"🏆  EXECUTIVE DASHBOARD")
     ws.merge_range("H12:M13","",tilef2); ws.write_url("H12","internal:'Leadership Review'!A1",tilef2,"🧭  LEADERSHIP REVIEW")
     # advanced-analysis action buttons
@@ -177,10 +180,10 @@ def build_home(e):
         "width":210,"height":26,"x_offset":2,"y_offset":4})
     # register + dashboard index (two columns: tracker name -> register | dashboard)
     ws.merge_range("B16:M16","TRACKER REGISTERS & DASHBOARDS  (click either link)",F["section"])
-    lblf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=INK,bg_color=GREY_L,
-        align="left",valign="vcenter",border=1,border_color=WHITE)
-    linkf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=BLUE_D,bg_color=BLUE_L,
-        align="center",valign="vcenter",border=1,border_color=WHITE,underline=True)
+    lblf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=TXT,bg_color=NAVY_CARD,
+        align="left",valign="vcenter",border=1,border_color=BORDER)
+    linkf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=NAVY_BG,bg_color=TEAL,
+        align="center",valign="vcenter",border=1,border_color=BORDER,underline=True)
     r=17
     for i,spec in enumerate(HD.REGISTERS):
         rr=17+(i//2); base=1+(i%2)*9
@@ -194,14 +197,14 @@ def build_home(e):
     links=[("Master Data","Master Data"),("Settings","Settings"),("Help","Help"),
            ("Calculations","Calculations"),("Incident Register","Incident"),("Corrective Actions","Corrective Actions"),
            ("Data Quality","Data Quality"),("Investigation Log","Investigation Log")]
-    lf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=GREY_D,bg_color=GREY_L,
-        align="center",valign="vcenter",border=1,border_color=WHITE,underline=True)
+    lf=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=TXT_MUTED,bg_color=NAVY_CARD,
+        align="center",valign="vcenter",border=1,border_color=BORDER,underline=True)
     for i,(cap,sh) in enumerate(links):
         rr=r2+(i//3); cc=1+(i%3)*4
         ws.merge_range(rr,cc,rr,cc+3,"",lf); ws.write_url(rr,cc,"internal:'%s'!A1"%sh,lf,cap)
     r3=r2+((len(links)-1)//3)+2
     ws.merge_range(r3,1,r3+2,12,
-        "Fully dynamic: every KPI, chart and RAG status recalculates automatically from the 24 registers. "
+        "Fully dynamic: every KPI, chart and RAG status recalculates automatically from the 25 registers. "
         "Set your man-hours & targets on the Settings sheet, choose a Period (month/quarter) & Department on "
         "the Executive Dashboard, add rows to any register and click ⟳ Refresh — no manual updates required.",F["note"])
     print_setup(ws, last_row=r3+5, last_col=12)
@@ -254,23 +257,24 @@ def _ragname(lbl):
     return "rg"+"".join(ch for ch in lbl if ch.isalnum())
 
 def build_exec(e):
-    F=e.F; RR=e.RR; EX=e.EX; ws=e.wb.add_worksheet("Executive Dashboard"); ws.set_tab_color(BLUE_D)
-    gridcols(ws); ws.set_zoom(75)
+    F=e.FD; RR=e.RR; EX=e.EX; ws=e.wb.add_worksheet("Executive Dashboard"); ws.set_tab_color(TEAL)
+    gridcols(ws,e); ws.set_zoom(75)
     row=header(e,ws,"🏆","EXECUTIVE EHS DASHBOARD","All 24 trackers  ·  Leading vs Lagging  ·  period-on-period variance")
     row=navchips(e,ws,row)
+    ws.freeze_panes(row,0)
     # filters : Period (month/quarter) + Department drive the whole sheet
     ws.merge_range(row,1,row,18,"FILTERS  ·  select a period to compare against the previous period",F["section"]); row+=1
-    ws.write(row,1,"Period",F["th"]); ws.merge_range(row,2,row,3,"Jun",e.F["set_val"])
+    ws.write(row,1,"Period",F["th"]); ws.merge_range(row,2,row,3,"Jun",e.FD["set_val"])
     e.wb.define_name("SelPeriod","='Executive Dashboard'!$C$%d"%(row+1))
     ws.data_validation(row,2,row,2,{"validate":"list","source":"=F_Period"})
-    ws.write(row,5,"Department",F["th"]); ws.merge_range(row,6,row,7,"All",e.F["set_val"])
+    ws.write(row,5,"Department",F["th"]); ws.merge_range(row,6,row,7,"All",e.FD["set_val"])
     e.wb.define_name("SelDept","='Executive Dashboard'!$G$%d"%(row+1))
     ws.data_validation(row,6,row,6,{"validate":"list","source":"=F_Dept"})
     # register-month filter (drives per-tracker dashboards + the cross-tracker analytics section)
-    ws.write(row,9,"Register Month",F["th"]); ws.merge_range(row,10,row,11,"All",e.F["set_val"])
+    ws.write(row,9,"Register Month",F["th"]); ws.merge_range(row,10,row,11,"All",e.FD["set_val"])
     e.wb.define_name("SelMonth","='Executive Dashboard'!$K$%d"%(row+1))
     ws.data_validation(row,10,row,10,{"validate":"list","source":"=F_Month"})
-    ws.merge_range(row,13,row,18,"Period drives the KPI wall vs prior. Register Month drives cross-tracker analytics & all 24 tracker dashboards.",F["note"])
+    ws.merge_range(row,13,row,18,"Period drives the KPI wall vs prior. Register Month drives cross-tracker analytics & all 25 tracker dashboards.",F["note"])
     row+=2
 
     # ===== LAGGING band: every reactive/outcome tracker =====
@@ -335,7 +339,7 @@ def build_exec(e):
     radar.add_series({"name":"Target","categories":RR["_radar_lbl"],"values":RR["_radar_tgt"],
         "line":{"color":ACCENT,"width":1.5,"dash_type":"dash"},"marker":{"type":"diamond","size":4,"fill":{"color":ACCENT}}})
     e._style(radar,"Compliance Profile: Actual vs Target"); radar.set_legend({"position":"bottom","font":{"size":8}})
-    heat_note = e._fmt(font_name="Segoe UI",font_size=9,italic=True,font_color=GREY_M)
+    heat_note = e._fmt(font_name="Segoe UI",font_size=9,italic=True,font_color=TXT_MUTED,bg_color=NAVY_BG)
     ct1=e.bar_chart(RR["_topact_lbl"],RR["_topact_val"],"Top 10 Unsafe Acts",AMBER)
     ct2=e.bar_chart(RR["_topcond_lbl"],RR["_topcond_val"],"Top 10 Unsafe Conditions",RED)
     place_chart(e,ws,row,1,radar,486,300); place_chart(e,ws,row,7,ct1,486,300); place_chart(e,ws,row,13,ct2,486,300)
@@ -345,10 +349,12 @@ def build_exec(e):
     ws.merge_range(row,7,row+1,18,"Risk Heat Map (Risk Level × Department) — see 'Calculations' sheet, range: %s (auto colour-scaled green→red)"%RR["_heat_range"],F["note"])
     row+=17
 
+    row=_risk_matrix_block(e,ws,row)
+
     ws.merge_range(row,1,row,18,"COMPLIANCE GAUGES  ·  cross-tracker leading vs lagging",F["section"]); row+=1
     for i,(name,info) in enumerate(e.GAUGE.items()):
         g=_gauge(e,info["range"],name); g.set_size({"width":250,"height":180}); ws.insert_chart(row,1+i*3,g)
-        gv=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=BLUE_D,align="center",valign="vcenter",num_format='0.0"%"')
+        gv=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=GOLD,bg_color=NAVY_CARD2,align="center",valign="vcenter",num_format='0.0"%"')
         ws.merge_range(row+8,1+i*3,row+8,1+i*3+2,"="+info["val"],gv)
     row+=11
     lb=e.bar_chart(RR["_leading"]["lbl"],RR["_leading"]["val"],"Leading Activity Volume (period)",GREEN)
@@ -389,18 +395,62 @@ def _gauge(e, rng3, title):
     """half-doughnut gauge from a 3-cell range (value/2, remainder, hidden 50)."""
     ch=e.wb.add_chart({"type":"doughnut"})
     ch.add_series({"values":rng3,
-        "points":[{"fill":{"color":GREEN}},{"fill":{"color":GREY_L}},{"fill":{"none":True}}]})
+        "points":[{"fill":{"color":TEAL}},{"fill":{"color":BORDER}},{"fill":{"none":True}}]})
     ch.set_rotation(270); ch.set_hole_size(62); ch.set_legend({"none":True})
-    ch.set_title({"name":title,"name_font":{"size":9.5,"bold":True,"color":BLUE_D}})
+    ch.set_title({"name":title,"name_font":{"size":9.5,"bold":True,"color":TXT}})
     ch.set_chartarea({"border":{"none":True},"fill":{"none":True}})
     return ch
 
+def _risk_matrix_block(e, ws, row):
+    """A genuine Likelihood x Consequence 5x5 risk matrix (from the JSA Risk Assessment
+    register's Likelihood/Consequence fields). Cell colour is a fixed property of the matrix
+    design (the risk band for that L x C score, standard 4-band convention) - the number inside
+    is a live COUNTIFS count mirrored from the Calculations cross-tab."""
+    F=e.FD
+    top=e.RR.get("_riskmatrix_top"); c0=e.RR.get("_riskmatrix_c0")
+    if top is None: return row
+    ws.merge_range(row,1,row,18,
+        "TRUE RISK MATRIX  ·  Likelihood × Consequence (JSA Risk Assessment)  ·  colour = fixed risk band, number = live count",
+        F["section"]); row+=1
+    hdr=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=NAVY_BG,bg_color=TEAL,
+        align="center",valign="vcenter",border=1,border_color=NAVY_BG,text_wrap=True)
+    corner=e._fmt(font_name="Segoe UI",font_size=8,bold=True,font_color=TXT,bg_color=NAVY_CARD,
+        align="center",valign="vcenter",border=1,border_color=BORDER,text_wrap=True)
+    hdr_row=row
+    ws.merge_range(hdr_row,1,hdr_row,2,"LIKELIHOOD ▼ / CONSEQUENCE ▶",corner)
+    cons_labels=["1 Negligible","2 Minor","3 Moderate","4 Major","5 Catastrophic"]
+    for j,lbl in enumerate(cons_labels):
+        ws.merge_range(hdr_row,3+j*3,hdr_row,5+j*3,lbl,hdr)
+    lik_labels={5:"5 Almost Certain",4:"4 Likely",3:"3 Possible",2:"2 Unlikely",1:"1 Rare"}
+    def band_fmt(score):
+        if score<=4: bg=TEAL
+        elif score<=9: bg=GOLD
+        elif score<=14: bg=ORANGE
+        else: bg=CORAL
+        return e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=NAVY_BG,bg_color=bg,
+            align="center",valign="vcenter",border=1,border_color=NAVY_BG)
+    for i in range(5):
+        lik=5-i; rr=hdr_row+1+i
+        ws.merge_range(rr,1,rr,2,lik_labels[lik],hdr)
+        for j in range(5):
+            cons=j+1; score=lik*cons
+            cellref="Calculations!%s"%xl_rowcol_to_cell(top+i, c0+1+j, True, True)
+            ws.merge_range(rr,3+j*3,rr,5+j*3,"="+cellref,band_fmt(score))
+    legend=e._fmt(font_name="Segoe UI",font_size=8.5,font_color=TXT_MUTED,bg_color=NAVY_BG,align="left",valign="vcenter")
+    lr=hdr_row+6
+    ws.merge_range(lr,1,lr,18,
+        "🟢 Low (score 1-4)   🟡 Medium (5-9)   🟠 High (10-14)   🔴 Extreme (15-25)   ·  "
+        "score = Likelihood × Consequence (both rated 1-5 on the JSA Risk Assessment register)",
+        legend)
+    return lr+2
+
 # ---- Leadership ----------------------------------------------------------
 def build_leadership(e):
-    F=e.F; RR=e.RR; ws=e.wb.add_worksheet("Leadership Review"); ws.set_tab_color(ACCENT)
-    gridcols(ws); ws.set_zoom(85)
+    F=e.FD; RR=e.RR; ws=e.wb.add_worksheet("Leadership Review"); ws.set_tab_color(CORAL)
+    gridcols(ws,e); ws.set_zoom(85)
     row=header(e,ws,"🧭","EXECUTIVE LEADERSHIP REVIEW","Monthly corporate safety scorecard  ·  prepared for Plant Head")
     row=navchips(e,ws,row)
+    ws.freeze_panes(row,0)
     ws.merge_range(row,1,row,18,"CORPORATE SAFETY SCORECARD",F["section"]); row+=1
     # use EX cur/prior values (already period-aware) for consistency
     ex=e.EX
@@ -420,12 +470,12 @@ def build_leadership(e):
 
     # Top Movers - management by exception: biggest improvement / regression this period
     ws.merge_range(row,1,row,18,"TOP MOVERS  ·  biggest change vs prior period, normalised across all 24 trackers",F["section"]); row+=1
-    goodf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=GREEN,align="left",valign="vcenter",
-        border=1,border_color="#D8E1EB")
-    badf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=RED,align="left",valign="vcenter",
-        border=1,border_color="#D8E1EB")
-    pctf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,align="center",valign="vcenter",
-        border=1,border_color="#D8E1EB",num_format='+0.0%;-0.0%')
+    goodf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=GREEN,bg_color=NAVY_CARD,align="left",valign="vcenter",
+        border=1,border_color=BORDER)
+    badf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=RED,bg_color=NAVY_CARD,align="left",valign="vcenter",
+        border=1,border_color=BORDER)
+    pctf=e._fmt(font_name="Segoe UI",font_size=10,bold=True,font_color=TXT,bg_color=NAVY_CARD,align="center",valign="vcenter",
+        border=1,border_color=BORDER,num_format='+0.0%;-0.0%')
     ws.merge_range(row,1,row,4,"🟢 BEST IMPROVEMENT",F["section"]); ws.merge_range(row,7,row,10,"🔴 BIGGEST REGRESSION",F["section"])
     row+=1
     mb=RR["_movers_best"]; mw=RR["_movers_worst"]
@@ -483,8 +533,8 @@ def build_leadership(e):
     c1=e.bar_chart(e.RR["_backlog_tracker_lbl"],e.RR["_backlog_tracker_val"],"Overdue Items by Tracker",RED)
     c2=e.dough(e.RR["_backlog_aging_lbl"],e.RR["_backlog_aging_val"],"Ageing Mix (open items)",[GREEN,AMBER,"#EA580C",RED])
     place_chart(e,ws,row,1,c1,486,290); place_chart(e,ws,row,7,c2,486,290)
-    totf=e._fmt(font_name="Segoe UI",font_size=26,bold=True,font_color=RED,align="center",valign="vcenter")
-    lblf2=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=GREY_D,align="center",valign="vcenter")
+    totf=e._fmt(font_name="Segoe UI",font_size=26,bold=True,font_color=CORAL,bg_color=NAVY_BG,align="center",valign="vcenter")
+    lblf2=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=TXT_MUTED,bg_color=NAVY_BG,align="center",valign="vcenter")
     ws.merge_range(row,13,row,17,"TOTAL SYSTEM BACKLOG",lblf2)
     ws.merge_range(row+1,13,row+6,17,"="+e.RR["_backlog_total_cell"],totf)
     row+=16
@@ -543,8 +593,8 @@ def build_leadership(e):
 
     # ---- Auto-generated insight bullets ----
     ws.merge_range(row,1,row,18,"KEY INSIGHTS  ·  auto-generated from this period's data",F["section"]); row+=1
-    insf=e._fmt(font_name="Segoe UI",font_size=10,font_color=INK,bg_color=GREY_L,align="left",
-        valign="vcenter",text_wrap=True,indent=1,border=1,border_color="#E2E8F0")
+    insf=e._fmt(font_name="Segoe UI",font_size=10,font_color=TXT,bg_color=NAVY_CARD,align="left",
+        valign="vcenter",text_wrap=True,indent=1,border=1,border_color=BORDER)
     bullets=[
         '="• TRIR is "&TEXT(TRIR,"0.00")&"  ("&TEXT(%s,"+0.0%%;-0.0%%")&" vs the prior period)"'%e.EX["TRIR"]["delta"],
         '="• Department League: "&INDEX(%s,8)&" has the lowest composite safety score this period ("&INDEX(%s,8)&"/100) — review its training, observation-closure and CA-closure rates."'%(lg,lv),
@@ -576,11 +626,12 @@ def _leadership_tiles(e, ws, row, defs):
 
 # ---- per-register dashboard (rich HSE-Full-System analysis layout) ------
 def build_register_dash(e, spec):
-    F=e.F; RR=e.RR[spec["key"]]; ws=e.wb.add_worksheet(dash_name(spec)); ws.set_tab_color(BLUE_M)
-    gridcols(ws); ws.set_zoom(82)
+    F=e.FD; RR=e.RR[spec["key"]]; ws=e.wb.add_worksheet(dash_name(spec)); ws.set_tab_color(TEAL)
+    gridcols(ws,e); ws.set_zoom(82)
     row=header(e,ws,spec["emoji"],spec["sheet"].upper()+" PERFORMANCE",
                "Live data from the %s register  ·  filtered by Register Month & Department"%spec["sheet"])
     row=navchips(e,ws,row,extra=spec["sheet"])
+    ws.freeze_panes(row,0)
 
     # 8 KPI tiles, 2 rows x 4
     ws.merge_range(row,1,row,18,"KEY METRICS",F["section"]); row+=1
@@ -604,8 +655,10 @@ def build_register_dash(e, spec):
         place_chart(e,ws,row,cols[i],ch,486,290)
     row+=16
     if spec["key"]=="toolbox" and "_toolbox_heat_meta" in e.RR:
-        ws.merge_range(row,1,row,18,"TOPIC × DEPARTMENT COVERAGE  ·  darker = more sessions delivered",F["section"]); row+=1
+        ws.merge_range(row,1,row,18,"TOPIC × DEPARTMENT COVERAGE  ·  brighter = more sessions delivered",F["section"]); row+=1
         row=_mirror_heat(e, ws, row, e.RR["_toolbox_heat_meta"], [BLUE_M,GREEN,AMBER,RED,GREY_M])
+    if spec["key"]=="jsa":
+        row=_risk_matrix_block(e,ws,row)
 
     # Department Performance + Status Distribution (if not already used above)
     ws.merge_range(row,1,row,18,"DEPARTMENT PERFORMANCE",F["section"]); row+=1
@@ -634,15 +687,15 @@ def _month_delta_row(e, ws, row, RR):
     """This-month-vs-last-month delta strip under the KPI cards, using the tracker's own
     Monthly Volume series (independent of the Register Month filter, which already drives
     the KPI cards above) so it always shows a concrete number even when 'All' is selected."""
-    F=e.F; mv=RR["month_val"]
+    F=e.FD; mv=RR["month_val"]
     f=('=IF(CurMonthNo=0,"Select a specific Register Month (Executive Dashboard) to see month-over-month change",'
        'IF(CurMonthNo=1,"Jan is the first month of the year — no in-year prior month to compare",'
        '"This month ("&INDEX(L_Month,CurMonthNo)&"): "&INDEX(%s,CurMonthNo)&"   vs   "&INDEX(L_Month,CurMonthNo-1)&'
        '": "&INDEX(%s,CurMonthNo-1)&"   "&IF(INDEX(%s,CurMonthNo)>=INDEX(%s,CurMonthNo-1),"▲ ","▼ ")&'
        'TEXT(IFERROR((INDEX(%s,CurMonthNo)-INDEX(%s,CurMonthNo-1))/INDEX(%s,CurMonthNo-1),0),"+0.0%%;-0.0%%")))')%(
         mv,mv,mv,mv,mv,mv,mv)
-    fmt=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=BLUE_D,bg_color=GREY_L,
-        align="left",valign="vcenter",border=1,border_color="#D8E1EB",indent=1)
+    fmt=e._fmt(font_name="Segoe UI",font_size=9.5,bold=True,font_color=TEAL,bg_color=NAVY_CARD,
+        align="left",valign="vcenter",border=1,border_color=BORDER,indent=1)
     ws.merge_range(row,1,row,18,f,fmt)
     return row+2
 
@@ -652,7 +705,7 @@ def _advanced_analysis(e, ws, row, spec, RR):
     with a severity/risk field), a Target-vs-Actual trend with a next-month forecast (registers
     with both a target and actual field tracked monthly), and cost-impact rollups where a rate
     is configured on Settings. Only emits a section if this tracker has at least one of these."""
-    key=spec["key"]; F=e.F
+    key=spec["key"]; F=e.FD
     AGING_KEYS={"ca","nc","hseobs","wpinsp","eqinsp","walk","unsafeact","unsafecond"}
     HOTSPOT_KEYS={"jsa","hseobs","wpinsp","eqinsp","walk","unsafeact","unsafecond","nc","swa"}
     FORECAST={"toolbox":("fc_toolbox","Attendees"),"bulletins":("fc_bulletins","Reach"),
@@ -670,8 +723,8 @@ def _advanced_analysis(e, ws, row, spec, RR):
     if has_certexp:
         ce_lbl=e.RR["_cert_expiry_lbl"]; ce_val=e.RR["_cert_expiry_val"]
         for i in range(3):
-            tf=e._fmt(font_name="Segoe UI",font_size=8.5,bold=True,font_color=GREY_M,align="left",valign="vcenter")
-            vf=e._fmt(font_name="Segoe UI",font_size=17,bold=True,font_color=AMBER,align="left",valign="vcenter")
+            tf=e._fmt(font_name="Segoe UI",font_size=8.5,bold=True,font_color=TXT_MUTED,bg_color=NAVY_BG,align="left",valign="vcenter")
+            vf=e._fmt(font_name="Segoe UI",font_size=17,bold=True,font_color=GOLD,bg_color=NAVY_BG,align="left",valign="vcenter")
             ws.write_formula(row,1+i*6,"=INDEX(%s,%d)"%(ce_lbl,i+1),tf,0)
             ws.write_formula(row+1,1+i*6,"=INDEX(%s,%d)"%(ce_val,i+1),vf,0)
         row+=3
@@ -716,7 +769,7 @@ def _forecast_chart(e, tag, label):
 
 def _hotspot_table(e, ws, row, spec, col0):
     """Live top-5 department watchlist table (mirrors the Calculations hotspot block)."""
-    F=e.F; tag=spec["key"]+"_hotspot"
+    F=e.FD; tag=spec["key"]+"_hotspot"
     lbl=e.RR.get(tag+"_lbl"); val=e.RR.get(tag+"_val")
     if not lbl: return
     ws.write(row,col0,"Department",F["th"]); ws.write(row,col0+1,"Severity Count",F["th"])
@@ -728,7 +781,7 @@ def _hotspot_table(e, ws, row, spec, col0):
 def _cost_tile(e, ws, row, spec):
     """Cost-impact rollup - only for the two trackers with a genuine, Settings-configured rate
     (no fabricated numbers): Stop Work downtime and Incident lost days."""
-    F=e.F; key=spec["key"]
+    F=e.FD; key=spec["key"]
     dsuf=(",%s,dCrit"%rng(spec,"Department")) if has(spec,"Department") else ""
     if key=="swa":
         label="ESTIMATED DOWNTIME COST (this Register Month)"
@@ -736,9 +789,9 @@ def _cost_tile(e, ws, row, spec):
     else:
         label="ESTIMATED LOST-DAY COST (this Register Month)"
         formula='=SUMIFS(%s,%s,mCrit%s)*CostPerLostDay'%(rng(spec,"Lost Days"),rng(spec,"Month"),dsuf)
-    fmt=e._fmt(font_name="Segoe UI",font_size=17,bold=True,font_color=BLUE_D,bg_color=AMBER_L,
-        align="left",valign="vcenter",border=1,border_color="#E2C97A",num_format='"₹"#,##0',indent=1)
-    lblf=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=GREY_D,align="left",valign="vcenter",indent=1)
+    fmt=e._fmt(font_name="Segoe UI",font_size=17,bold=True,font_color=NAVY_BG,bg_color=GOLD,
+        align="left",valign="vcenter",border=1,border_color=GOLD,num_format='"₹"#,##0',indent=1)
+    lblf=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=TXT_MUTED,bg_color=NAVY_BG,align="left",valign="vcenter",indent=1)
     ws.merge_range(row,1,row,10,label,lblf)
     ws.merge_range(row+1,1,row+2,10,formula,fmt)
     return row+4
@@ -848,7 +901,11 @@ def _signature_charts(e, spec, RR):
         c2=e.dough(R["_incident_persontype_lbl"],R["_incident_persontype_val"],"Person Type Mix",
             [BLUE_M,GREEN,AMBER,RED])
         return [c1,c2]
-    # fallback for anything not itemised above (shouldn't hit, all 24 covered)
+    if key=="environment":
+        c1=e.dough(RR["cat_lbl"],RR["cat_val"],"Waste Type Mix",[TEAL,CORAL,GOLD,ORANGE,PURPLE,BLUE_M])
+        c2=e.bar_chart(RR["dept_lbl"],RR["dept_val"],"Records by Department",TEAL) if "dept_val" in RR else None
+        return [c for c in (c1,c2) if c]
+    # fallback for anything not itemised above (shouldn't hit, all 25 covered)
     out=[]
     if "cat_val" in RR: out.append(e.bar_chart(RR["cat_lbl"],RR["cat_val"],"Breakdown by %s"%spec.get("cat"),GREEN))
     if "st_val" in RR: out.append(e.dough(RR["st_lbl"],RR["st_val"],"Status Distribution",[AMBER,BLUE_M,GREEN,RED]))
@@ -857,7 +914,7 @@ def _signature_charts(e, spec, RR):
 def _mirror_heat(e, ws, row, meta, colors):
     """Mirror a heat-map block from Calculations onto the dashboard, live, with matching
     3-colour-scale conditional formatting (so it's actually visible, not just a pointer note)."""
-    F=e.F; top=meta["top"]; col0=meta["col0"]; nrows=meta["nrows"]; ncols=meta["ncols"]
+    F=e.FD; top=meta["top"]; col0=meta["col0"]; nrows=meta["nrows"]; ncols=meta["ncols"]
     for j in range(ncols+1):
         ws.write_formula(row,1+j,"=Calculations!%s"%xl_rowcol_to_cell(top-1,col0+j,True,True),F["th"])
     for i in range(nrows):
@@ -865,13 +922,13 @@ def _mirror_heat(e, ws, row, meta, colors):
             fmt = F["tdl"] if j==0 else F["heat"]
             ws.write_formula(row+1+i,1+j,"=Calculations!%s"%xl_rowcol_to_cell(top+i,col0+j,True,True),fmt,0)
     ws.conditional_format(row+1,2,row+nrows,1+ncols,{"type":"3_color_scale",
-        "min_color":WHITE,"mid_color":BLUE_L,"max_color":BLUE_D})
+        "min_color":NAVY_CARD,"mid_color":"#1D7A6E","max_color":TEAL})
     return row+nrows+3
 
 def _dept_table(e, ws, row, RR):
     """Live Department Performance table (Department | Count | 2 metrics), with a data bar
     on Count for instant visual ranking - mirrors the Calculations sheet via formulas."""
-    F=e.F; top=RR["dept_top"]; dc0=RR["dept_dc0"]; n=RR["dept_n"]
+    F=e.FD; top=RR["dept_top"]; dc0=RR["dept_dc0"]; n=RR["dept_n"]
     headers=["Department","Count",RR["dept_met1_name"],RR["dept_met2_name"]]
     for j,h in enumerate(headers):
         ws.write(row,1+j,h,F["th"])
@@ -886,7 +943,7 @@ def _dept_table(e, ws, row, RR):
 def _matrix_table(e, ws, row, spec, RR):
     """Live Monthly Performance Matrix, mirrored from Calculations. Percentage rows get a
     green-amber-red colour scale across their own 12 months, so a missed month jumps out."""
-    F=e.F
+    F=e.FD
     top=RR.get("matrix_top")
     if top is None: return
     kinds=RR.get("matrix_kinds",[])
@@ -906,4 +963,4 @@ def _matrix_table(e, ws, row, spec, RR):
             ws.write_formula(rr,2+j,"=IFERROR(%s!$%s$%d,\"\")"%(calc_sheet,cL,srcrow+1),F["tdn"],0)
         if i < len(kinds) and kinds[i]=="pct":
             ws.conditional_format(rr,2,rr,13,{"type":"3_color_scale",
-                "min_color":RED_L,"mid_color":AMBER_L,"max_color":GREEN_L})
+                "min_color":"#5C2323","mid_color":"#5C4419","max_color":"#1D7A6E"})

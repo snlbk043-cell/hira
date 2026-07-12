@@ -3,7 +3,7 @@
 Two deliverables live here:
 
 1. **`RCPL_Integrated_EHS_Management_System.xlsm`** — the full enterprise EHS system
-   (24 registers + 24 dashboards + Executive + Leadership + Settings + Help). *Latest.*
+   (25 registers + 25 dashboards + Executive + Leadership + Settings + Help). *Latest.*
 2. **`RCPL_Executive_EHS_KPI_Dashboard.xlsm`** — the original single executive dashboard.
 
 ---
@@ -12,7 +12,7 @@ Two deliverables live here:
 
 A complete, single-workbook corporate EHS system — structure adopted from the client's
 `HSE_Full_System.xlsx` and rebuilt as a fully **live, formula-driven, macro-enabled**
-workbook (55 sheets).
+workbook (61 sheets).
 
 ## Gap analysis → what was added
 The original executive dashboard covered incidents, inspections, audits, training, PTW,
@@ -23,13 +23,13 @@ Alcohol Tests, PTW Audits, NC Management, JSA Risk Assessment, HSE Observations,
 Corrective Actions, Internal/External Audits (split), plus **Leadership Review, Settings
 and Help** sheets.
 
-## Structure (55 sheets)
+## Structure (61 sheets)
 | Group | Sheets |
 |---|---|
 | **Navigation** | `Home` |
 | **Rollups** | `Executive Dashboard`, `Leadership Review` |
-| **Per-register dashboards (24)** | `Dash · <register>` — one interactive dashboard per register |
-| **Registers (24)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident |
+| **Per-register dashboards (25)** | `Dash · <register>` — one interactive dashboard per register |
+| **Registers (25)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident, Environmental Performance |
 | **Engine & config** | `Calculations`, `Master Data`, `Settings`, `Help` |
 
 ## Round 6: every tracker dashboard rebuilt with bespoke, tracker-specific analysis
@@ -143,6 +143,36 @@ genuinely new to add beyond its existing KPI cards and signature charts:
 Every tracker dashboard also gained a **month-over-month delta strip** under its KPI cards
 ("This month (Jun): 14  vs  May: 11  ▲ +27.3%"), independent of whether a specific Register
 Month is selected.
+
+## Round 10: dark-theme reskin, a true 5x5 risk matrix, and a 25th register (Environmental)
+- **Dark navy/teal reskin of every dashboard** — Home, Cover Page, Executive Dashboard,
+  Leadership Review, and all 25 per-tracker dashboards now use the dark navy/teal/gold/coral
+  palette from the Board Pack PPT (`NAVY_BG #0B1220`, cards `#111C33`/`#162440`, teal accent
+  `#14B8A6`) instead of the original white/blue theme. Charts, KPI cards, tables and gauges all
+  reflow through a new dark format set (`EHS.FD`/`cardfmt_dark`/dark chart styling). The 25
+  data-entry **registers** (and Master Data/Settings/Calculations/Data Quality) intentionally
+  stay in the original light theme — those are working data-grids, not visual dashboards, and
+  restyling them carried no benefit and real regression risk.
+- **Persistent "sticky" navigation** — every dashboard now freezes its header + nav row
+  (`freeze_panes`) so Home/Executive/Leadership/Register links stay visible while scrolling,
+  the practical equivalent of a left sidebar without restructuring the existing 18-column grid
+  layout that ~900 lines of chart/table placement already depend on (a true column-based sidebar
+  would have meant re-deriving every hardcoded column offset in the dashboard builder - too much
+  regression risk for a cosmetic change we can't visually re-render in this environment).
+- **True Likelihood × Consequence 5×5 Risk Matrix** — JSA Risk Assessment gained two new fields,
+  `Likelihood` and `Consequence` (1-5 each, safe column-append). A live cross-tab on Calculations
+  (`COUNTIFS`, Register-Month + Department filtered) feeds a genuine 5×5 matrix on both the
+  Executive Dashboard and the JSA dashboard: colour is the fixed risk band for that L×C score
+  (🟢 Low 1-4, 🟡 Medium 5-9, 🟠 High 10-14, 🔴 Extreme 15-25), the number in each cell is a live
+  count. This is in addition to (not a replacement for) the existing Risk Rating × Department
+  heat map.
+- **New 25th tracker: Environmental Performance** — the "E" in EHS, previously untracked. New
+  register (Date, Department, Location, Waste Type, Waste Generated/Recycled (kg) with an
+  auto-computed Recycle Rate %, Energy (kWh), Water (m³), Fuel (L) consumption, Remarks) plus its
+  own full dashboard (8 KPI cards, waste-type mix, department breakdown, monthly performance
+  matrix) — follows the exact same generator/register/KPI/dashboard pattern as the other 24
+  trackers, wired into Home, the slicer builder and Data Quality automatically since those are
+  already driven generically off the register list.
 
 ## Round 9: three new sheets, three new automation macros, and a safer take on YoY
 - **Data Quality sheet** — pure-formula integrity checks across all 24 registers: blank
