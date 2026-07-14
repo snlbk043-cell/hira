@@ -380,6 +380,22 @@ class EHS:
             ws.write(r,3,note,F["set_note"])
             self.wb.define_name(name,"=Settings!$C$%d"%(r+1)); r+=1
 
+        r+=1; r=block(r,"PPE ISSUED / USED  ·  used by the Executive Snapshot dashboard")
+        ws.write(r,1,"Location",F["bodyb"]); ws.write(r,2,"Issued",F["bodyb"]); ws.write(r,3,"Used",F["bodyb"]); r+=1
+        ppe_first=r
+        PPE_ROWS=[("Plant A",500,460),("Plant B",340,300),("Warehouse",210,200),
+                  ("Workshop",302,280),("Tank Farm",180,165)]
+        for loc,issued,used in PPE_ROWS:
+            ws.write(r,1,loc,F["set_lbl"]); ws.write_number(r,2,issued,F["set_val"]); ws.write_number(r,3,used,F["set_val"]); r+=1
+        ppe_last=r-1
+        self.wb.define_name("PPE_Loc","=Settings!$B$%d:$B$%d"%(ppe_first+1,ppe_last+1))
+        self.wb.define_name("PPE_Issued","=Settings!$C$%d:$C$%d"%(ppe_first+1,ppe_last+1))
+        self.wb.define_name("PPE_Used","=Settings!$D$%d:$D$%d"%(ppe_first+1,ppe_last+1))
+        self.PPE={"loc":"Settings!$B$%d:$B$%d"%(ppe_first+1,ppe_last+1),
+                  "issued":"Settings!$C$%d:$C$%d"%(ppe_first+1,ppe_last+1),
+                  "used":"Settings!$D$%d:$D$%d"%(ppe_first+1,ppe_last+1)}
+        r+=1
+
         r+=1; r=block(r,"INDUSTRY BENCHMARKING")
         bm=[("Industry Benchmark TRIR",1.5,"Reference line on the Executive TRIR trend chart","BenchTRIR"),
             ("Industry Benchmark LTIFR",2.5,"Reference line on the Executive LTIFR trend chart","BenchLTIFR")]
@@ -696,6 +712,9 @@ class EHS:
         series("unsafecond_closed", rstatus("unsafecond","Status","Completed"))
         series("nc_total", rcount("nc"))
         series("nc_closed", rstatus("nc","Status","Closed"))
+        s_tr=spec_of("training")
+        series("induction_total", lambda mn:'COUNTIFS(%s,"Induction",%s,"%s",%s,dCrit)'%(
+            rng(s_tr,"Training Type"),rng(s_tr,"Month"),mn,rng(s_tr,"Department")))
 
         # ---- monthly series feeding each tracker's bespoke "signature" chart ----
         def ravg(key, colname):
@@ -1372,6 +1391,65 @@ class EHS:
                   ("swa","cat","Severity",["Critical","High"])]
         for key,mode,field,severe in HOTSPOTS:
             r=self._hotspot_block(ws,r,c0,spec_of(key),mode,field,severe,key+"_hotspot")
+
+        # ---- Executive Snapshot extras: Inductions, Work Permits, Cost breakdown ----
+        tr=spec_of("training"); ptw=spec_of("ptwaudit"); swa=spec_of("swa")
+        es0=r
+        ws.write(es0,c0,"Metric",F["th"]); ws.write(es0,c0+1,"Value",F["th"])
+        snap_defs=[
+            ("Inductions (period)", 'COUNTIFS(%s,"Induction",%s,mCrit,%s,dCrit)'%(
+                rng(tr,"Training Type"),rng(tr,"Month"),rng(tr,"Department"))),
+            ("Work Permits Issued", 'SUMIFS(%s,%s,mCrit,%s,dCrit)'%(
+                rng(ptw,"Permits Reviewed"),rng(ptw,"Month"),rng(ptw,"Department"))),
+            ("Work Permit Deviations", 'SUMIFS(%s,%s,mCrit,%s,dCrit)'%(
+                rng(ptw,"Deviations Found"),rng(ptw,"Month"),rng(ptw,"Department"))),
+            ("Lost-Day Cost (period)", 'SUMIFS(%s,%s,mCrit,%s,dCrit)*CostPerLostDay'%(
+                rng(inc,"Lost Days"),rng(inc,"Month"),rng(inc,"Department"))),
+            ("Downtime Cost (period)", 'SUMIFS(%s,%s,mCrit,%s,dCrit)*CostPerDowntimeMin'%(
+                rng(swa,"Downtime (min)"),rng(swa,"Month"),rng(swa,"Department"))),
+        ]
+        for i,(lbl,formula) in enumerate(snap_defs):
+            ws.write(es0+1+i,c0,lbl,F["tdl"])
+            ws.write_formula(es0+1+i,c0+1,"="+formula,F["tdn"],0)
+        cL=xl_col_to_name(c0+1)
+        self.RR["_snap_induction"]="Calculations!$%s$%d"%(cL,es0+2)
+        self.RR["_snap_permits_issued"]="Calculations!$%s$%d"%(cL,es0+3)
+        self.RR["_snap_permits_dev"]="Calculations!$%s$%d"%(cL,es0+4)
+        self.RR["_snap_lostday_cost"]="Calculations!$%s$%d"%(cL,es0+5)
+        self.RR["_snap_downtime_cost"]="Calculations!$%s$%d"%(cL,es0+6)
+        r=es0+8
+
+        # small labelled mini-tables (chart-ready ranges) mirroring the scalars above +
+        # a couple of extra EX-card rollups, for the Executive Snapshot's chart grid & tables
+        sc0=r
+        ws.write(sc0,c0,"Case Type",F["th"]); ws.write(sc0,c0+1,"Count",F["th"])
+        safety_cases=[("First Aid",EX["First Aid"]["cur"]),("Injuries (Recordable)",EX["Recordable"]["cur"]),
+                      ("Near Miss",EX["Near Miss"]["cur"])]
+        for i,(lbl,cellref) in enumerate(safety_cases):
+            ws.write(sc0+1+i,c0,lbl,F["tdl"]); ws.write_formula(sc0+1+i,c0+1,"="+cellref,F["tdn"],0)
+        self.RR["_snap_cases_lbl"]=self._a1(sc0,c0,sc0+2); self.RR["_snap_cases_val"]=self._a1(sc0,c0+1,sc0+2)
+        r=sc0+5
+
+        cb0=r
+        ws.write(cb0,c0,"Cost Component",F["th"]); ws.write(cb0,c0+1,"Est. Cost (Rs)",F["th"])
+        ws.write(cb0+1,c0,"Lost-Day Cost",F["tdl"]); ws.write_formula(cb0+1,c0+1,"="+self.RR["_snap_lostday_cost"],F["tdn"],0)
+        ws.write(cb0+2,c0,"Stop-Work Downtime Cost",F["tdl"]); ws.write_formula(cb0+2,c0+1,"="+self.RR["_snap_downtime_cost"],F["tdn"],0)
+        self.RR["_snap_cost_lbl"]=self._a1(cb0,c0,cb0+1); self.RR["_snap_cost_val"]=self._a1(cb0,c0+1,cb0+1)
+        r=cb0+4
+
+        au0=r
+        ws.write(au0,c0,"Audit Type",F["th"]); ws.write(au0,c0+1,"Count",F["th"])
+        ws.write(au0+1,c0,"Internal Audits",F["tdl"]); ws.write_formula(au0+1,c0+1,"="+EX["Internal Audits"]["cur"],F["tdn"],0)
+        ws.write(au0+2,c0,"External Audits",F["tdl"]); ws.write_formula(au0+2,c0+1,"="+EX["External Audits"]["cur"],F["tdn"],0)
+        self.RR["_snap_audit_lbl"]=self._a1(au0,c0,au0+1); self.RR["_snap_audit_val"]=self._a1(au0,c0+1,au0+1)
+        r=au0+4
+
+        wp0=r
+        ws.write(wp0,c0,"Permit Status",F["th"]); ws.write(wp0,c0+1,"Count",F["th"])
+        ws.write(wp0+1,c0,"Issued",F["tdl"]); ws.write_formula(wp0+1,c0+1,"="+self.RR["_snap_permits_issued"],F["tdn"],0)
+        ws.write(wp0+2,c0,"Deviations",F["tdl"]); ws.write_formula(wp0+2,c0+1,"="+self.RR["_snap_permits_dev"],F["tdn"],0)
+        self.RR["_snap_permit_lbl"]=self._a1(wp0,c0,wp0+1); self.RR["_snap_permit_val"]=self._a1(wp0,c0+1,wp0+1)
+        r=wp0+4
 
         return r
 

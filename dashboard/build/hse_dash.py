@@ -1,4 +1,5 @@
 """Dashboards for the Integrated EHS Management System."""
+import os
 from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
 import hse_data as HD
 from hse_build import (BLUE_D,BLUE_M,BLUE_L,GREY_D,GREY_M,GREY_L,GREEN,GREEN_L,
@@ -7,6 +8,7 @@ from hse_build import (BLUE_D,BLUE_M,BLUE_L,GREY_D,GREY_M,GREY_L,GREEN,GREEN_L,
                        spec_of, rng, has)
 
 MONTHS=HD.MONTHS
+ASSETS_DIR=os.path.join(os.path.dirname(os.path.abspath(__file__)),"assets")
 
 def dash_name(spec): return "Dash · "+spec["sheet"]
 
@@ -16,6 +18,7 @@ def build(e):
     build_home(e)
     build_exec(e)
     build_leadership(e)
+    build_exec_snapshot(e)
     for spec in HD.REGISTERS:
         build_register_dash(e, spec)
 
@@ -153,12 +156,15 @@ def build_home(e):
     e.wb.define_name("LastRefresh","='Home'!$K$10")
     # top-level nav
     ws.merge_range("B11:M11","EXECUTIVE VIEWS",F["section"])
-    tilef=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=NAVY_BG,bg_color=TEAL,
+    tilef=e._fmt(font_name="Segoe UI",font_size=12,bold=True,font_color=NAVY_BG,bg_color=TEAL,
         align="center",valign="vcenter",border=2,border_color=NAVY_BG)
-    tilef2=e._fmt(font_name="Segoe UI",font_size=13,bold=True,font_color=NAVY_BG,bg_color=CORAL,
+    tilef2=e._fmt(font_name="Segoe UI",font_size=12,bold=True,font_color=NAVY_BG,bg_color=CORAL,
         align="center",valign="vcenter",border=2,border_color=NAVY_BG)
-    ws.merge_range("B12:F13","",tilef); ws.write_url("B12","internal:'Executive Dashboard'!A1",tilef,"🏆  EXECUTIVE DASHBOARD")
-    ws.merge_range("H12:M13","",tilef2); ws.write_url("H12","internal:'Leadership Review'!A1",tilef2,"🧭  LEADERSHIP REVIEW")
+    tilef3=e._fmt(font_name="Segoe UI",font_size=12,bold=True,font_color=NAVY_BG,bg_color=GOLD,
+        align="center",valign="vcenter",border=2,border_color=NAVY_BG)
+    ws.merge_range("B12:D13","",tilef); ws.write_url("B12","internal:'Executive Dashboard'!A1",tilef,"🏆  EXECUTIVE DASHBOARD")
+    ws.merge_range("F12:H13","",tilef2); ws.write_url("F12","internal:'Leadership Review'!A1",tilef2,"🧭  LEADERSHIP REVIEW")
+    ws.merge_range("J12:M13","",tilef3); ws.write_url("J12","internal:'Executive Snapshot'!A1",tilef3,"📸  EXECUTIVE SNAPSHOT")
     # advanced-analysis action buttons
     btnrow=13
     ws.set_row(btnrow,32)
@@ -623,6 +629,117 @@ def _leadership_tiles(e, ws, row, defs):
         rr=row+(i//4)*6; cc=1+(i%4)*4
         vtile(e,ws,rr,cc,lbl,ex,kind,acc,w=4)
     return row+((len(defs)-1)//4+1)*6
+
+# ---- Executive Snapshot (dense one-page board view, inspired by a LinkedIn dashboard
+# template a client shared - same ring-KPI + chart-grid + dense-table layout, but every
+# number is live from RCPL's own registers, not fabricated) -----------------------------
+def build_exec_snapshot(e):
+    F=e.FD; RR=e.RR; EX=e.EX; ws=e.wb.add_worksheet("Executive Snapshot"); ws.set_tab_color(GOLD)
+    gridcols(ws,e); ws.set_zoom(72)
+    row=header(e,ws,"📸","EHS EXECUTIVE SNAPSHOT","One-page board view  ·  12-month rollup  ·  every figure live")
+    row=navchips(e,ws,row)
+    ws.freeze_panes(row,0)
+
+    ws.merge_range(row,1,row,18,"HEADLINE KPIs",F["section"]); row+=1
+    kpis=[("Inductions Done","="+RR["_snap_induction"],"num","blue"),
+          ("Awareness Programs","="+EX["Toolbox Talks"]["cur"],"num","green"),
+          ("First Aid Cases","="+EX["First Aid"]["cur"],"num","amber"),
+          ("Recordable Injuries","="+EX["Recordable"]["cur"],"num","red"),
+          ("Near Miss","="+EX["Near Miss"]["cur"],"num","amber"),
+          ("Open NCs","="+EX["Open NCs"]["cur"],"num","red"),
+          ("Work Permits Issued","="+RR["_snap_permits_issued"],"num","blue"),
+          ("Est. EHS Cost Impact","="+RR["_snap_lostday_cost"]+"+"+RR["_snap_downtime_cost"],"num","purple")]
+    for i,(lbl,formula,kind,acc) in enumerate(kpis):
+        rr=row+(i//4)*6; cc=1+(i%4)*4
+        tile(e,ws,rr,cc,lbl,formula,kind,acc,w=4)
+    row+=12
+
+    ws.merge_range(row,1,row,18,"MONTHLY TRENDS",F["section"]); row+=1
+    MS=e.MSER
+    c1=e.col_chart(_months(e),[("Inductions",MS["induction_total"],TEAL)],"Inductions Done — Monthly Trend")
+    c2=e.col_chart(_months(e),[("Awareness Programs",MS["toolbox"],GOLD)],"EHS Awareness Programs — Monthly Trend")
+    c3=e.bar_chart(RR["_snap_cases_lbl"],RR["_snap_cases_val"],"First Aid / Injuries / Near Miss (period)",CORAL)
+    place_chart(e,ws,row,1,c1,486,290); place_chart(e,ws,row,7,c2,486,290); place_chart(e,ws,row,13,c3,486,290)
+    row+=16
+
+    ws.merge_range(row,1,row,18,"COST, COMPLIANCE & PPE",F["section"]); row+=1
+    c4=e.dough(RR["_snap_cost_lbl"],RR["_snap_cost_val"],"Est. EHS Cost Breakdown",[GOLD,CORAL])
+    c5=e.line_chart(_months(e),MS["nc_total"],"NC / NCR — Monthly Trend",CORAL)
+    c6=e.col_chart(e.PPE["loc"],[("Issued",e.PPE["issued"],TEAL),("Used",e.PPE["used"],GOLD)],"PPE Issued vs Used by Location")
+    place_chart(e,ws,row,1,c4,486,290); place_chart(e,ws,row,7,c5,486,290); place_chart(e,ws,row,13,c6,486,290)
+    row+=16
+
+    ws.merge_range(row,1,row,18,"AUDITS, PERMITS & SHOPFLOOR SNAPSHOT",F["section"]); row+=1
+    c7=e.bar_chart(RR["_snap_audit_lbl"],RR["_snap_audit_val"],"Audits Conducted (Internal vs External)",TEAL)
+    c8=e.bar_chart(RR["_snap_permit_lbl"],RR["_snap_permit_val"],"Work Permit Status",GOLD)
+    place_chart(e,ws,row,1,c7,486,290); place_chart(e,ws,row,7,c8,486,290)
+    _snapshot_strip(e,ws,row,13)   # icon cards are shorter than the 290px charts beside them;
+    row+=16                         # advance by the charts' height so nothing overlaps below
+
+    ws.merge_range(row,1,row,18,"SUMMARY TABLES",F["section"]); row+=1
+    row=_snapshot_tables(e,ws,row)
+
+    print_setup(ws, last_row=row+2, last_col=18)
+
+def _snapshot_strip(e, ws, row, col0):
+    """Icon-captioned mini-cards ('shopfloor snapshot' in the reference) - genuine icon
+    art (matching the Board Pack PPT), not stock photography we don't have rights to."""
+    cards=[("icon_shieldcheck.png","Safety Audit","In-process audit to ensure compliance"),
+           ("icon_megaphone.png","Awareness Training","Toolbox talks & safety training"),
+           ("icon_hardhat.png","PPE Check","Issued vs used, verified by site"),
+           ("icon_clipboard.png","Permit Verification","Valid permits ensure safe operations")]
+    cardf=e._fmt(bg_color=NAVY_CARD,border=1,border_color=BORDER)
+    labf=e._fmt(font_name="Segoe UI",font_size=9,bold=True,font_color=TXT,bg_color=NAVY_CARD,
+        align="center",valign="vcenter")
+    subf=e._fmt(font_name="Segoe UI",font_size=7.5,font_color=TXT_MUTED,bg_color=NAVY_CARD,
+        align="center",valign="vcenter",text_wrap=True)
+    for i,(icon,label,sub) in enumerate(cards):
+        cc=col0+i*2
+        ws.merge_range(row,cc,row+2,cc+1,"",cardf)   # icon area (non-overlapping with text below)
+        path=os.path.join(ASSETS_DIR,icon)
+        if os.path.exists(path):
+            ws.insert_image(row,cc,path,{"x_scale":0.28,"y_scale":0.28,"x_offset":30,"y_offset":6})
+        ws.merge_range(row+3,cc,row+3,cc+1,label,labf)
+        ws.merge_range(row+4,cc,row+5,cc+1,sub,subf)
+    return row+7
+
+def _snapshot_tables(e, ws, row):
+    """Dense multi-table strip at the bottom, mirroring the reference's summary-table row -
+    every cell is a live formula reference, nothing typed/fabricated."""
+    F=e.FD; RR=e.RR; EX=e.EX
+    def minitable(r0, c0, title, headers, rows_):
+        ws.merge_range(r0,c0,r0,c0+1,title,F["th"])
+        for j,h in enumerate(headers): ws.write(r0+1,c0+j,h,F["th"])
+        for i,(lbl,formula) in enumerate(rows_):
+            ws.write(r0+2+i,c0,lbl,F["tdl"])
+            ws.write_formula(r0+2+i,c0+1,"="+formula,F["tdn"],0)
+        return r0+2+len(rows_)+1
+
+    cols=[1,5,9,13]
+    r1=row
+    minitable(r1,cols[0],"EHS SUMMARY",["Parameter","Value"],[
+        ("TRIR",EX["TRIR"]["cur"]),("LTIFR",EX["LTIFR"]["cur"]),
+        ("Training Compliance %",EX["Training Compliance"]["cur"]),
+        ("Obs Closure %",EX["Obs Closure"]["cur"]),("CA Closure %",EX["CA Closure"]["cur"])])
+    minitable(r1,cols[1],"SAFETY CASES",["Type","Count"],[
+        ("First Aid",EX["First Aid"]["cur"]),("Recordable Injuries",EX["Recordable"]["cur"]),
+        ("Near Miss",EX["Near Miss"]["cur"])])
+    minitable(r1,cols[2],"COST STATUS",["Component","Est. Rs"],[
+        ("Lost-Day Cost",RR["_snap_lostday_cost"]),("Downtime Cost",RR["_snap_downtime_cost"])])
+    minitable(r1,cols[3],"AUDITS CONDUCTED",["Type","Count"],[
+        ("Internal",EX["Internal Audits"]["cur"]),("External",EX["External Audits"]["cur"])])
+    r2=r1+9
+    minitable(r2,cols[0],"WORK PERMIT STATUS",["Status","Count"],[
+        ("Issued",RR["_snap_permits_issued"]),("Deviations",RR["_snap_permits_dev"]),
+        ("Compliance %",EX["PTW Compliance"]["cur"])])
+    ppe_hdr=F["th"]
+    ws.merge_range(r2,cols[1],r2,cols[1]+2,"PPE STATUS (by Location)",ppe_hdr)
+    ws.write(r2+1,cols[1],"Location",ppe_hdr); ws.write(r2+1,cols[1]+1,"Issued",ppe_hdr); ws.write(r2+1,cols[1]+2,"Used",ppe_hdr)
+    for i in range(5):
+        ws.write_formula(r2+2+i,cols[1],"=INDEX(PPE_Loc,%d)"%(i+1),F["tdl"],0)
+        ws.write_formula(r2+2+i,cols[1]+1,"=INDEX(PPE_Issued,%d)"%(i+1),F["tdn"],0)
+        ws.write_formula(r2+2+i,cols[1]+2,"=INDEX(PPE_Used,%d)"%(i+1),F["tdn"],0)
+    return r2+9
 
 # ---- per-register dashboard (rich HSE-Full-System analysis layout) ------
 def build_register_dash(e, spec):

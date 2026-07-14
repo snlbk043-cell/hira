@@ -12,7 +12,7 @@ Two deliverables live here:
 
 A complete, single-workbook corporate EHS system — structure adopted from the client's
 `HSE_Full_System.xlsx` and rebuilt as a fully **live, formula-driven, macro-enabled**
-workbook (61 sheets).
+workbook (62 sheets).
 
 ## Gap analysis → what was added
 The original executive dashboard covered incidents, inspections, audits, training, PTW,
@@ -23,7 +23,7 @@ Alcohol Tests, PTW Audits, NC Management, JSA Risk Assessment, HSE Observations,
 Corrective Actions, Internal/External Audits (split), plus **Leadership Review, Settings
 and Help** sheets.
 
-## Structure (61 sheets)
+## Structure (62 sheets)
 | Group | Sheets |
 |---|---|
 | **Navigation** | `Home` |
@@ -143,6 +143,31 @@ genuinely new to add beyond its existing KPI cards and signature charts:
 Every tracker dashboard also gained a **month-over-month delta strip** under its KPI cards
 ("This month (Jun): 14  vs  May: 11  ▲ +27.3%"), independent of whether a specific Register
 Month is selected.
+
+## Round 11: Executive Snapshot — a dense one-page board view (client reference layout)
+- **New "Executive Snapshot" sheet** — a client shared a LinkedIn post of a dense, ring-KPI +
+  chart-grid one-page EHS dashboard from another vendor and asked for something similar. Built
+  it as a 62nd sheet inside the existing workbook (reuses the live Calculations engine, not a
+  separate file) in the same dark navy/teal theme as the rest of Round 10: 8 headline KPI
+  cards (Inductions, Awareness Programs, First Aid/Recordable/Near Miss, Open NCs, Work Permits
+  Issued, Est. Cost Impact), a 3x3 chart grid (monthly trends, cost breakdown, NC trend, PPE
+  issued-vs-used), a 4-card icon strip (reusing the Board Pack PPT's icon art — no stock/plant
+  photography, since we don't have any and won't pass off generic photos as real RCPL shopfloor
+  images), and a dense multi-table strip at the bottom (EHS Summary, Safety Cases, Cost Status,
+  Audits, Work Permit Status, PPE by Location).
+- **Scoping decisions, made explicitly with the client rather than assumed:** the reference
+  also showed OEE %, machine-downtime and loss-type tables — genuine manufacturing/production
+  metrics, not EHS data, and RCPL's system has no such register. Left out entirely rather than
+  fabricate plant-performance numbers. PPE Issued/Used *was* requested and added as a small
+  5-location editable table on Settings (`PPE_Loc`/`PPE_Issued`/`PPE_Used`), the same
+  safe-addition pattern used for Environmental Performance in Round 10.
+- **New live calculations, all additive** (Calculations sheet): a `induction_total` monthly
+  series (Training register, Training Type = Induction), plus a small block of period-filtered
+  scalars/mini-tables (Work Permits Issued/Deviations, Lost-Day & Stop-Work-Downtime cost
+  estimates, Safety Cases, Audits Internal vs External) — all built from existing register data
+  via the same `mCrit`/`dCrit` filtered `COUNTIFS`/`SUMIFS` pattern used everywhere else in the
+  system, reusing existing `EX` KPI-card cells wherever one already existed instead of
+  recomputing.
 
 ## Round 10: dark-theme reskin, a true 5x5 risk matrix, and a 25th register (Environmental)
 - **Dark navy/teal reskin of every dashboard** — Home, Cover Page, Executive Dashboard,
