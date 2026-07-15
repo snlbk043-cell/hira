@@ -1,6 +1,7 @@
 export type Summary = {
   year: number;
   department: string;
+  month: number;
   TRIR: number;
   LTIFR: number;
   trirMonthly: number[];

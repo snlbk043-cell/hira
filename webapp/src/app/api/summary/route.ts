@@ -6,10 +6,21 @@ export const dynamic = "force-dynamic";
 
 type Row = Record<string, unknown>;
 
+/** Builds a WHERE clause + params for year (always) + optional month + optional
+ * department, matching Excel's SelPeriod/SelDept filter pair. */
+function buildFilter(dateCol: string, year: number, month: number, department: string, deptFilter: boolean) {
+  const clauses = [`EXTRACT(YEAR FROM ${dateCol}) = $1`];
+  const params: unknown[] = [year];
+  if (month) { params.push(month); clauses.push(`EXTRACT(MONTH FROM ${dateCol}) = $${params.length}`); }
+  if (deptFilter) { params.push(department); clauses.push(`department = $${params.length}`); }
+  return { where: clauses.join(" AND "), params };
+}
+
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const year = Number(sp.get("year")) || new Date().getFullYear();
   const department = sp.get("department") || "All";
+  const month = Number(sp.get("month")) || 0; // 0 = All months
   const database = db();
   const deptFilter = department !== "All";
 
@@ -24,15 +35,15 @@ export async function GET(req: NextRequest) {
   `) as Row[];
   const manhoursByMonth = new Array(12).fill(0);
   for (const r of mhRows) manhoursByMonth[(r.month as number) - 1] = Number(r.hours);
-  const totalManhours = manhoursByMonth.reduce((a, b) => a + b, 0) || 1;
+  const totalManhours = (month ? manhoursByMonth[month - 1] : manhoursByMonth.reduce((a, b) => a + b, 0)) || 1;
 
   // ---- incidents ----
+  const incF = buildFilter("incident_date", year, month, department, deptFilter);
   const incidentRows = (await database.sql.unsafe(
     `SELECT classification, department, body_part, risk_rating, lost_days, root_cause,
             EXTRACT(MONTH FROM incident_date)::int AS month
-     FROM incidents
-     WHERE EXTRACT(YEAR FROM incident_date) = $1 ${deptFilter ? "AND department = $2" : ""}`,
-    deptFilter ? [year, department] : [year]
+     FROM incidents WHERE ${incF.where}`,
+    incF.params
   )) as Row[];
 
   const classificationCounts: Record<string, number> = {};
@@ -80,11 +91,10 @@ export async function GET(req: NextRequest) {
 
   // ---- helper for status-based % + monthly count across the other registers ----
   async function statusSummary(table: string, dateCol: string, closedValues: string[]) {
+    const f = buildFilter(dateCol, year, month, department, deptFilter);
     const rows = (await database.sql.unsafe(
-      `SELECT status, EXTRACT(MONTH FROM ${dateCol})::int AS month
-       FROM ${table}
-       WHERE EXTRACT(YEAR FROM ${dateCol}) = $1 ${deptFilter ? "AND department = $2" : ""}`,
-      deptFilter ? [year, department] : [year]
+      `SELECT status, EXTRACT(MONTH FROM ${dateCol})::int AS month FROM ${table} WHERE ${f.where}`,
+      f.params
     )) as Row[];
     const monthly = new Array(12).fill(0);
     const monthlyClosed = new Array(12).fill(0);
@@ -108,25 +118,25 @@ export async function GET(req: NextRequest) {
   const ca = await statusSummary("corrective_actions", "date_raised", ["Completed"]);
   const walk = await statusSummary("safety_walkthroughs", "walk_date", ["Completed"]);
 
+  const inspF = buildFilter("inspection_date", year, month, department, deptFilter);
   const inspRows = (await database.sql.unsafe(
-    `SELECT inspection_type, status, EXTRACT(MONTH FROM inspection_date)::int AS month
-     FROM inspections WHERE EXTRACT(YEAR FROM inspection_date) = $1 ${deptFilter ? "AND department = $2" : ""}`,
-    deptFilter ? [year, department] : [year]
+    `SELECT inspection_type, status, EXTRACT(MONTH FROM inspection_date)::int AS month FROM inspections WHERE ${inspF.where}`,
+    inspF.params
   )) as Row[];
   const monthlyInspections = new Array(12).fill(0);
   for (const r of inspRows) monthlyInspections[(r.month as number) - 1]++;
 
+  const ptwF = buildFilter("audit_date", year, month, department, deptFilter);
   const ptwRows = (await database.sql.unsafe(
-    `SELECT verdict, compliance_pct FROM ptw_audits WHERE EXTRACT(YEAR FROM audit_date) = $1 ${deptFilter ? "AND department = $2" : ""}`,
-    deptFilter ? [year, department] : [year]
+    `SELECT verdict, compliance_pct FROM ptw_audits WHERE ${ptwF.where}`, ptwF.params
   )) as Row[];
   const ptwTotal = ptwRows.length;
   const ptwCompliant = ptwRows.filter((r) => r.verdict === "Compliant").length;
   const ptwPct = ptwTotal ? (100 * ptwCompliant) / ptwTotal : 0;
 
+  const jsaF = buildFilter("assessment_date", year, month, department, deptFilter);
   const jsaRows = (await database.sql.unsafe(
-    `SELECT approval_status FROM risk_assessments WHERE EXTRACT(YEAR FROM assessment_date) = $1 ${deptFilter ? "AND department = $2" : ""}`,
-    deptFilter ? [year, department] : [year]
+    `SELECT approval_status FROM risk_assessments WHERE ${jsaF.where}`, jsaF.params
   )) as Row[];
   const jsaTotal = jsaRows.length;
   const jsaApproved = jsaRows.filter((r) => r.approval_status === "Approved").length;
@@ -148,7 +158,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ---- open/overdue backlog across registers with a due date ----
-  async function overdueCount(table: string, dateCol: string) {
+  async function overdueCount(table: string) {
     const rows = (await database.sql.unsafe(
       `SELECT COUNT(*)::int AS n FROM ${table} WHERE status = 'Overdue' ${deptFilter ? "AND department = $1" : ""}`,
       deptFilter ? [department] : []
@@ -156,15 +166,16 @@ export async function GET(req: NextRequest) {
     return Number(rows[0]?.n || 0);
   }
   const backlog = {
-    corrective_actions: await overdueCount("corrective_actions", "date_raised"),
-    hse_observations: await overdueCount("hse_observations", "obs_date"),
-    inspections: await overdueCount("inspections", "inspection_date"),
-    safety_walkthroughs: await overdueCount("safety_walkthroughs", "walk_date"),
+    corrective_actions: await overdueCount("corrective_actions"),
+    hse_observations: await overdueCount("hse_observations"),
+    inspections: await overdueCount("inspections"),
+    safety_walkthroughs: await overdueCount("safety_walkthroughs"),
   };
 
   return Response.json({
     year,
     department,
+    month,
     TRIR: round2(TRIR),
     LTIFR: round2(LTIFR),
     trirMonthly: trirMonthly.map(round2),

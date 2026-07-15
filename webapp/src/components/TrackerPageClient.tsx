@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { trackerByKey } from "@/lib/trackers";
 import { computeSnapshot, Row } from "@/lib/aggregate";
-import { DEPARTMENTS } from "@/lib/constants";
+import { DEPARTMENTS, MONTH_NAMES } from "@/lib/constants";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
 import { exportTrackerPdf, exportTrackerPpt, exportTrackerExcel } from "@/lib/exportUtils";
@@ -15,6 +15,13 @@ const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6";
 const PALETTE = [TEAL, GOLD, CORAL, PURPLE, "#0b6ea8", "#22c55e", "#eab308", "#94a3b8"];
 const AXIS = { stroke: "#94a3b8", fontSize: 11 };
 const GRID = "#22314f";
+
+function monthRange(year: number, month: number) {
+  if (!month) return { from: `${year}-01-01`, to: `${year}-12-31` };
+  const last = new Date(year, month, 0).getDate();
+  const mm = String(month).padStart(2, "0");
+  return { from: `${year}-${mm}-01`, to: `${year}-${mm}-${String(last).padStart(2, "0")}` };
+}
 
 export default function TrackerPageClient({ trackerKey }: { trackerKey: string }) {
   const tracker = trackerByKey(trackerKey)!;
@@ -28,13 +35,20 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
 
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(0);
+  const [department, setDepartment] = useState("All");
+
   const load = useCallback(() => {
     setLoading(true);
-    fetch(`${endpoint}?limit=500`)
+    const { from, to } = monthRange(year, month);
+    const params = new URLSearchParams({ limit: "5000", from, to });
+    if (department !== "All") params.set("department", department);
+    fetch(`${endpoint}?${params.toString()}`)
       .then((r) => r.json())
       .then(setRows)
       .finally(() => setLoading(false));
-  }, [endpoint]);
+  }, [endpoint, year, month, department]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -120,6 +134,29 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
         </div>
       </div>
 
+      <div className="card p-3 flex flex-wrap items-center gap-4 mb-4 no-print">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-grey">Year</label>
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+            {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-grey">Month</label>
+          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+            <option value={0}>All</option>
+            {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-grey">Department</label>
+          <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <option value="All">All</option>
+            {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+      </div>
+
       {loading ? (
         <p className="text-grey text-sm mt-6">Loading…</p>
       ) : (
@@ -163,6 +200,58 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
                 </ResponsiveContainer>
               </ChartCard>
             ))}
+          </div>
+
+          {/* Department Performance + Monthly Performance Matrix */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {snapshot.deptTable.length > 0 && (
+              <ChartCard title="Department Performance">
+                <div className="overflow-x-auto mt-1">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th className="text-left p-2 text-grey">Department</th>
+                        <th className="text-right p-2 text-grey">Count</th>
+                        {snapshot.hasStatus && <th className="text-right p-2 text-grey">Closed %</th>}
+                        {snapshot.hasMetric && <th className="text-right p-2 text-grey">Avg {snapshot.metricLabel}</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snapshot.deptTable.map((d) => (
+                        <tr key={d.department} className="border-t border-border">
+                          <td className="p-2">{d.department}</td>
+                          <td className="p-2 text-right font-semibold">{d.count}</td>
+                          {snapshot.hasStatus && <td className="p-2 text-right">{d.closedPct ?? "—"}%</td>}
+                          {snapshot.hasMetric && <td className="p-2 text-right">{d.avgMetric ?? "—"}%</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </ChartCard>
+            )}
+            <ChartCard title="Monthly Performance Matrix">
+              <div className="overflow-x-auto mt-1">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="text-left p-2 text-grey">Month</th>
+                      <th className="text-right p-2 text-grey">Records</th>
+                      {snapshot.hasMetric && <th className="text-right p-2 text-grey">Avg {snapshot.metricLabel}</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {snapshot.monthMatrix.map((m) => (
+                      <tr key={m.month} className="border-t border-border">
+                        <td className="p-2">{m.month}</td>
+                        <td className="p-2 text-right font-semibold">{m.count}</td>
+                        {snapshot.hasMetric && <td className="p-2 text-right">{m.avgMetric ?? "—"}%</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </ChartCard>
           </div>
 
           {/* Entry form */}

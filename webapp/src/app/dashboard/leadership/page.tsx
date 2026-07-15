@@ -1,6 +1,9 @@
 "use client";
-import { useState } from "react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
+import { useEffect, useState } from "react";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+} from "recharts";
 import Filters from "@/components/Filters";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
@@ -23,10 +26,20 @@ function riskCellColor(n: number) {
   return "#f0625a";
 }
 
+type HealthEntry = { label: string; icon: string; score: number; detail: string };
+
 export default function LeadershipDashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [department, setDepartment] = useState("All");
-  const { data, loading, error } = useSummary(year, department);
+  const [month, setMonth] = useState(0);
+  const { data, loading, error } = useSummary(year, department, month);
+
+  const [health, setHealth] = useState<HealthEntry[] | null>(null);
+  useEffect(() => {
+    fetch(`/api/health-summary?department=${encodeURIComponent(department)}`)
+      .then((r) => r.json())
+      .then((json) => setHealth(json.results));
+  }, [department]);
 
   if (loading) return <div className="max-w-7xl mx-auto p-6 text-grey">Loading…</div>;
   if (error || !data) return <div className="max-w-7xl mx-auto p-6 text-coral">Failed to load: {error}</div>;
@@ -65,7 +78,7 @@ export default function LeadershipDashboard() {
     <div className="max-w-7xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-1">🧭 Leadership Review</h1>
       <p className="text-grey text-sm mb-4">Corporate safety scorecard for {year}{department !== "All" ? ` · ${department}` : ""}</p>
-      <Filters year={year} department={department} onYearChange={setYear} onDepartmentChange={setDepartment} />
+      <Filters year={year} department={department} month={month} onYearChange={setYear} onDepartmentChange={setDepartment} onMonthChange={setMonth} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <KpiCard icon="⛑️" label="TRIR" value={data.TRIR} accent="coral" />
@@ -100,6 +113,25 @@ export default function LeadershipDashboard() {
           </div>
         </ChartCard>
       </div>
+
+      <ChartCard title="System Health — RAG status of all 25 trackers (spider chart)" className="mb-4">
+        {health ? (
+          <ResponsiveContainer width="100%" height={420}>
+            <RadarChart data={health} outerRadius="75%">
+              <PolarGrid stroke={GRID} />
+              <PolarAngleAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+              <PolarRadiusAxis domain={[0, 2]} tickCount={3} tick={{ fill: "#94a3b8", fontSize: 9 }} />
+              <Radar name="Health" dataKey="score" stroke={TEAL} fill={TEAL} fillOpacity={0.35} />
+              <Tooltip
+                contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }}
+                formatter={(value, _name, item) => [`${item.payload.detail} (${value === 2 ? "Green" : value === 1 ? "Amber" : "Red"})`, item.payload.label]}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-grey text-sm p-4">Loading health scores…</p>
+        )}
+      </ChartCard>
 
       <ChartCard title="Incident Risk Rating × Department (real data)" className="mb-4">
         <div className="overflow-x-auto">

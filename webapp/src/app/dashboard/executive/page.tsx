@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from "recharts";
 import Filters from "@/components/Filters";
 import KpiCard from "@/components/KpiCard";
@@ -17,7 +18,8 @@ const GRID = "#22314f";
 export default function ExecutiveDashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [department, setDepartment] = useState("All");
-  const { data, loading, error } = useSummary(year, department);
+  const [month, setMonth] = useState(0);
+  const { data, loading, error } = useSummary(year, department, month);
 
   if (loading) return <div className="max-w-7xl mx-auto p-6 text-grey">Loading…</div>;
   if (error || !data) return <div className="max-w-7xl mx-auto p-6 text-coral">Failed to load: {error}</div>;
@@ -39,11 +41,20 @@ export default function ExecutiveDashboard() {
 
   const ratio = data.leadingMonthly.reduce((a, b) => a + b, 0) / Math.max(1, data.laggingMonthly.reduce((a, b) => a + b, 0));
 
+  const radarData = [
+    { metric: "Training", actual: data.training.pct, target: data.settings.training_target_pct ?? 95 },
+    { metric: "Obs Closure", actual: data.obs.pct, target: data.settings.obs_closure_target_pct ?? 90 },
+    { metric: "CA Closure", actual: data.ca.pct, target: data.settings.ca_closure_target_pct ?? 90 },
+    { metric: "PTW Compliance", actual: data.ptw.pct, target: data.settings.ptw_compliance_target_pct ?? 95 },
+    { metric: "JSA Approved", actual: data.jsa.pct, target: 90 },
+    { metric: "Walkthroughs Done", actual: data.walk.pct, target: 85 },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-1">🧭 Executive Dashboard</h1>
+      <h1 className="text-2xl font-bold mb-1">🏆 Executive Dashboard</h1>
       <p className="text-grey text-sm mb-4">All key safety indicators for {year}{department !== "All" ? ` · ${department}` : ""}</p>
-      <Filters year={year} department={department} onYearChange={setYear} onDepartmentChange={setDepartment} />
+      <Filters year={year} department={department} month={month} onYearChange={setYear} onDepartmentChange={setDepartment} onMonthChange={setMonth} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <KpiCard icon="⛑️" label="TRIR" value={data.TRIR} sub={`Target ≤ ${data.settings.trir_target ?? 1.0}`} accent="coral" />
@@ -115,9 +126,22 @@ export default function ExecutiveDashboard() {
         </ChartCard>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <ChartCard title="Compliance Profile — Actual vs Target (spider chart)">
+          <ResponsiveContainer width="100%" height={300}>
+            <RadarChart data={radarData} outerRadius="75%">
+              <PolarGrid stroke={GRID} />
+              <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+              <PolarRadiusAxis domain={[0, 100]} tickCount={5} tick={{ fill: "#94a3b8", fontSize: 9 }} />
+              <Radar name="Actual" dataKey="actual" stroke={TEAL} fill={TEAL} fillOpacity={0.35} />
+              <Radar name="Target" dataKey="target" stroke={CORAL} fill={CORAL} fillOpacity={0.08} strokeDasharray="4 3" />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </ChartCard>
         <ChartCard title="Root Cause Pareto">
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={300}>
             <BarChart data={rootCauses}>
               <CartesianGrid stroke={GRID} />
               <XAxis dataKey="name" tick={{ ...AXIS, fontSize: 9 }} interval={0} angle={-25} textAnchor="end" height={70} />
@@ -127,6 +151,9 @@ export default function ExecutiveDashboard() {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <ChartCard title="Monthly Incident Volume">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={monthly}>
@@ -135,6 +162,17 @@ export default function ExecutiveDashboard() {
               <YAxis tick={AXIS} />
               <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
               <Bar dataKey="incidents" fill={BLUE} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="Body Part Distribution">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={Object.entries(data.bodyPartCounts).map(([name, count]) => ({ name, count }))} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid stroke={GRID} horizontal={false} />
+              <XAxis type="number" tick={AXIS} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={AXIS} width={90} />
+              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Bar dataKey="count" fill={PURPLE} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

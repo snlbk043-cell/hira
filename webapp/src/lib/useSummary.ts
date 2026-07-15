@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Summary } from "./types";
 
-export function useSummary(year: number, department: string) {
+export function useSummary(year: number, department: string, month: number = 0) {
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -10,7 +10,7 @@ export function useSummary(year: number, department: string) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/summary?year=${year}&department=${encodeURIComponent(department)}`)
+    fetch(`/api/summary?year=${year}&department=${encodeURIComponent(department)}&month=${month}`)
       .then((r) => {
         if (!r.ok) throw new Error(`summary fetch failed: ${r.status}`);
         return r.json();
@@ -25,7 +25,7 @@ export function useSummary(year: number, department: string) {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [year, department]);
+  }, [year, department, month]);
 
   return { data, loading, error };
 }

@@ -21,20 +21,21 @@ export default function SettingsPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [manhours, setManhours] = useState<number[]>(new Array(12).fill(0));
   const [message, setMessage] = useState<string | null>(null);
-  const [seedResult, setSeedResult] = useState<string | null>(null);
-  const [seeding, setSeeding] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearResult, setClearResult] = useState<string | null>(null);
 
-  async function runSeed() {
-    setSeeding(true);
-    setSeedResult(null);
+  async function clearAllData() {
+    if (!confirm("This permanently deletes every record in all 25 trackers. This cannot be undone. Continue?")) return;
+    setClearing(true);
+    setClearResult(null);
     try {
-      const res = await fetch("/api/seed", { method: "POST" });
+      const res = await fetch("/api/admin/clear-data", { method: "POST" });
       const json = await res.json();
-      setSeedResult(JSON.stringify(json.results, null, 2));
+      setClearResult(`Cleared ${Object.keys(json.results).length} tables.`);
     } catch (e) {
-      setSeedResult(String(e));
+      setClearResult(String(e));
     } finally {
-      setSeeding(false);
+      setClearing(false);
     }
   }
 
@@ -118,16 +119,16 @@ export default function SettingsPage() {
         <p className="text-xs text-grey mt-3">Saved automatically when you leave a field (used for TRIR/LTIFR calculation).</p>
       </div>
 
-      <div className="card p-4 mt-6">
-        <div className="text-sm font-semibold mb-2">Import Existing Excel Data</div>
+      <div className="card p-4 mt-6 border-l-4 border-coral">
+        <div className="text-sm font-semibold mb-2 text-coral">⚠️ Danger Zone</div>
         <p className="text-xs text-grey mb-3">
-          One-time import of the 8 registers from the original RCPL Excel system, so trends show real history
-          immediately. Safe to click more than once — any table that already has rows is skipped.
+          Permanently deletes every record in all 25 trackers (does not touch Settings or man-hours). Use this once
+          to clear demo/sample data before your team starts entering real records. Cannot be undone.
         </p>
-        <button onClick={runSeed} disabled={seeding} className="bg-purple text-white font-semibold px-4 py-2 rounded-md disabled:opacity-50">
-          {seeding ? "Importing…" : "Import Excel Data"}
+        <button onClick={clearAllData} disabled={clearing} className="bg-coral text-[#0b1220] font-semibold px-4 py-2 rounded-md disabled:opacity-50">
+          {clearing ? "Clearing…" : "Clear All Tracker Data"}
         </button>
-        {seedResult && <pre className="text-xs text-grey mt-3 whitespace-pre-wrap">{seedResult}</pre>}
+        {clearResult && <span className="ml-3 text-sm text-grey">{clearResult}</span>}
       </div>
     </div>
   );
