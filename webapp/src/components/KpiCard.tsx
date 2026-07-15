@@ -38,15 +38,7 @@ export default function KpiCard({ icon, label, value, sub, accent = "teal" }: Pr
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[0.68rem] font-semibold text-grey uppercase tracking-wider truncate">{label}</div>
-          <div
-            className="text-2xl md:text-3xl font-extrabold mt-1.5 tracking-tight"
-            style={{
-              backgroundImage: `linear-gradient(135deg, #ffffff 25%, ${hex})`,
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              color: "transparent",
-            }}
-          >
+          <div className="text-2xl md:text-3xl font-extrabold mt-1.5 tracking-tight text-white">
             {value}
           </div>
           {sub && <div className={`text-xs mt-1 ${textClass[accent]}`}>{sub}</div>}
