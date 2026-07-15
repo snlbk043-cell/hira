@@ -71,6 +71,7 @@ const BUILDERS: Record<string, Builder> = {
       k("🟢", "Low Risk", countIf(rows, is("risk_level", "Low")), "teal"),
       k("⚠️", "Total Hazards Identified", sumField(rows, "hazards_identified"), "purple"),
       k("🎯", "Avg Risk Score", avgScore, "coral"),
+      k("🛠️", "HIRA Controls Compliance %", `${avgField(rows, "controls_compliance_pct")}%`, "teal"),
     ];
   },
   training: (rows) => [

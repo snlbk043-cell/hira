@@ -32,6 +32,15 @@ export type Summary = {
   top10Areas: { label: string; value: number }[];
   costImpact: { lostDayCost: number; downtimeCost: number; downtimeMinTotal: number };
   prior: { totalIncidents: number; recordableTotal: number; ltiFatalTotal: number; trainingPct: number; obsPct: number; caPct: number };
+  safeWork: {
+    lastRecordableDate: string | null;
+    safeDaysRecordable: number | null;
+    safeManHoursRecordable: number | null;
+    bestStreakRecordableDays: number | null;
+    lastLtiDate: string | null;
+    safeDaysLti: number | null;
+    byDepartment: Record<string, { lastRecordableDate: string | null; safeDays: number | null }>;
+  };
   settings: Record<string, number>;
   manhoursByMonth: number[];
 };

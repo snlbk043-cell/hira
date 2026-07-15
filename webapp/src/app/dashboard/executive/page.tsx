@@ -11,6 +11,7 @@ import Filters from "@/components/Filters";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
 import Gauge from "@/components/Gauge";
+import SafeWorkBanner from "@/components/SafeWorkBanner";
 import { useSummary } from "@/lib/useSummary";
 import { MONTHS } from "@/lib/types";
 import { TRACKERS } from "@/lib/trackers";
@@ -151,6 +152,16 @@ export default function ExecutiveDashboard() {
       <h1 className="text-2xl font-bold mb-1">🏆 Executive Dashboard</h1>
       <p className="text-grey text-sm mb-4">All key safety indicators for {year}{department !== "All" ? ` · ${department}` : ""}</p>
       <Filters year={year} department={department} month={month} onYearChange={setYear} onDepartmentChange={setDepartment} onMonthChange={setMonth} />
+
+      <SafeWorkBanner data={data} />
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+        <KpiCard icon="🩹" label="First Aid Cases" value={data.classificationCounts["First Aid"] || 0} accent="gold" />
+        <KpiCard icon="🦽" label="Restricted Work (RWC)" value={data.classificationCounts["Restricted Work"] || 0} accent="gold" />
+        <KpiCard icon="🏥" label="Medical Treatment (MTC)" value={data.classificationCounts["Medical Treatment"] || 0} accent="coral" />
+        <KpiCard icon="🚑" label="Lost Time Injury (LTI)" value={data.classificationCounts["Lost Time Injury"] || 0} accent="coral" />
+        <KpiCard icon="⚰️" label="Fatality" value={data.classificationCounts["Fatality"] || 0} accent="coral" />
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <KpiCard icon="⛑️" label="TRIR" value={data.TRIR} sub={`Target ≤ ${data.settings.trir_target ?? 1.0}`} accent="coral" />

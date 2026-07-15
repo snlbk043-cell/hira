@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TRACKERS } from "@/lib/trackers";
+import { TRACKERS, natureOf } from "@/lib/trackers";
 
 const DEFAULT_SITE_NAME = "RCPL SAFETY";
 const DEFAULT_COMPANY_NAME = "Campa Cola CSD Plant · EHS System";
@@ -28,11 +28,12 @@ const overview = [
   { href: "/dashboard/leadership", label: "Leadership Review", icon: "🧭" },
 ];
 
-function NavLink({ href, icon, label, active, onClick }: { href: string; icon: string; label: string; active: boolean; onClick?: () => void }) {
+function NavLink({ href, icon, label, active, onClick, nature }: { href: string; icon: string; label: string; active: boolean; onClick?: () => void; nature?: "leading" | "lagging" }) {
   return (
     <Link
       href={href}
       onClick={onClick}
+      title={nature ? (nature === "leading" ? "Leading indicator" : "Lagging indicator") : undefined}
       className={`relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
         active
           ? "bg-gradient-to-r from-teal/25 to-teal/5 text-teal font-semibold shadow-[inset_0_0_0_1px_rgba(20,184,166,0.35)]"
@@ -41,7 +42,13 @@ function NavLink({ href, icon, label, active, onClick }: { href: string; icon: s
     >
       {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[3px] rounded-full bg-teal shadow-[0_0_8px_2px_rgba(20,184,166,0.7)]" />}
       <span className="text-base leading-none w-5 text-center shrink-0">{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className="truncate flex-1">{label}</span>
+      {nature && (
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ background: nature === "leading" ? "#14b8a6" : "#f0625a", boxShadow: `0 0 5px 1px ${nature === "leading" ? "#14b8a680" : "#f0625a80"}` }}
+        />
+      )}
     </Link>
   );
 }
@@ -72,11 +79,17 @@ function SidebarContent({ pathname, onNavigate, siteName, companyName }: { pathn
       </div>
 
       <div className="px-2 py-1 flex-1">
-        <div className="text-[10px] font-semibold text-grey uppercase tracking-wider px-3 mb-1.5">Trackers</div>
+        <div className="flex items-center justify-between px-3 mb-1.5">
+          <div className="text-[10px] font-semibold text-grey uppercase tracking-wider">Trackers</div>
+          <div className="flex items-center gap-2 text-[10px] text-grey">
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal" />Leading</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-coral" />Lagging</span>
+          </div>
+        </div>
         <div className="flex flex-col gap-0.5">
           {TRACKERS.map((t) => {
             const href = `/tracker/${t.key}`;
-            return <NavLink key={t.key} href={href} icon={t.icon} label={t.label} active={pathname === href} onClick={onNavigate} />;
+            return <NavLink key={t.key} href={href} icon={t.icon} label={t.label} active={pathname === href} onClick={onNavigate} nature={natureOf(t)} />;
           })}
         </div>
       </div>

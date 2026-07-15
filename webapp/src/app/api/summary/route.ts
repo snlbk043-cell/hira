@@ -275,6 +275,66 @@ export async function GET(req: NextRequest) {
   }
   const prior = await priorPeriodMetrics();
 
+  // ---- Safe Work Man-Days / Man-Hours (all-time streak, not period-filtered -
+  // this is a running "days since last incident" counter, like plant signage,
+  // so it deliberately ignores the selected year/month, only the department) ----
+  async function safeWorkStats() {
+    const allIncidents = (await database.sql.unsafe(
+      `SELECT incident_date, department, classification FROM incidents ${deptFilter ? "WHERE department = $1" : ""} ORDER BY incident_date ASC`,
+      deptFilter ? [department] : []
+    )) as Row[];
+
+    const now = new Date();
+    const daysBetween = (a: Date, b: Date) => Math.floor((b.getTime() - a.getTime()) / 86400000);
+
+    const recordableDates = allIncidents
+      .filter((r) => RECORDABLE_CLASSIFICATIONS.includes(String(r.classification)))
+      .map((r) => new Date(String(r.incident_date)));
+    const ltiDates = allIncidents
+      .filter((r) => ["Lost Time Injury", "Fatality"].includes(String(r.classification)))
+      .map((r) => new Date(String(r.incident_date)));
+
+    const lastRecordable = recordableDates.length ? recordableDates[recordableDates.length - 1] : null;
+    const lastLti = ltiDates.length ? ltiDates[ltiDates.length - 1] : null;
+
+    function bestStreak(dates: Date[]): number | null {
+      if (dates.length === 0) return null;
+      let best = 0;
+      for (let i = 1; i < dates.length; i++) best = Math.max(best, daysBetween(dates[i - 1], dates[i]));
+      best = Math.max(best, daysBetween(dates[dates.length - 1], now));
+      return best;
+    }
+
+    const mhAllRows = (await database.sql`SELECT hours FROM manhours WHERE department = 'All'`) as Row[];
+    const totalManhoursAllTime = mhAllRows.reduce((a, r) => a + (Number(r.hours) || 0), 0);
+    const avgDailyManhours = mhAllRows.length ? totalManhoursAllTime / (mhAllRows.length * 30.44) : null;
+    const safeDaysRecordable = lastRecordable ? daysBetween(lastRecordable, now) : null;
+
+    const deptGroups = new Map<string, Date[]>();
+    for (const r of allIncidents) {
+      if (!RECORDABLE_CLASSIFICATIONS.includes(String(r.classification))) continue;
+      const d = String(r.department);
+      if (!deptGroups.has(d)) deptGroups.set(d, []);
+      deptGroups.get(d)!.push(new Date(String(r.incident_date)));
+    }
+    const byDepartment: Record<string, { lastRecordableDate: string | null; safeDays: number | null }> = {};
+    for (const [dept, dates] of deptGroups) {
+      const last = dates[dates.length - 1];
+      byDepartment[dept] = { lastRecordableDate: last.toISOString().slice(0, 10), safeDays: daysBetween(last, now) };
+    }
+
+    return {
+      lastRecordableDate: lastRecordable ? lastRecordable.toISOString().slice(0, 10) : null,
+      safeDaysRecordable,
+      safeManHoursRecordable: safeDaysRecordable !== null && avgDailyManhours !== null ? Math.round(safeDaysRecordable * avgDailyManhours) : null,
+      bestStreakRecordableDays: bestStreak(recordableDates),
+      lastLtiDate: lastLti ? lastLti.toISOString().slice(0, 10) : null,
+      safeDaysLti: lastLti ? daysBetween(lastLti, now) : null,
+      byDepartment,
+    };
+  }
+  const safeWork = await safeWorkStats();
+
   return Response.json({
     year,
     department,
@@ -309,6 +369,7 @@ export async function GET(req: NextRequest) {
     top10Areas,
     costImpact,
     prior,
+    safeWork,
     settings,
     manhoursByMonth,
   });

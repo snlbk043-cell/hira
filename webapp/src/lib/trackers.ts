@@ -56,9 +56,12 @@ export const TRACKERS: TrackerDef[] = [
       { name: "risk_level", label: "Risk Level", type: "select", options: RISK_LEVELS, role: "risk" },
       { name: "hazards_identified", label: "Hazards Identified", type: "number" },
       { name: "approval_status", label: "Approval Status", type: "select", options: ["Approved","Pending Review","Revision Required","Rejected"], role: "status" },
-      { name: "controls_implemented", label: "Controls Implemented", type: "text" },
+      { name: "controls_implemented", label: "Controls Implemented (Description)", type: "text" },
       { name: "likelihood", label: "Likelihood (1-5)", type: "select", options: ["1","2","3","4","5"], dataType: "number" },
       { name: "consequence", label: "Consequence (1-5)", type: "select", options: ["1","2","3","4","5"], dataType: "number" },
+      { name: "controls_planned", label: "Controls Planned (Count)", type: "number", role: "target_num" },
+      { name: "controls_completed", label: "Controls Completed (Count)", type: "number", role: "actual_num" },
+      { name: "controls_compliance_pct", label: "Controls Compliance %", type: "number", role: "metric_pct" },
     ],
   },
   {
@@ -393,6 +396,15 @@ export const TRACKERS: TrackerDef[] = [
 
 export function trackerByKey(key: string): TrackerDef | undefined {
   return TRACKERS.find((t) => t.key === key);
+}
+
+/** Leading vs lagging classification, standard EHS theory: lagging = an
+ * outcome measured after harm/a violation has already occurred (incidents,
+ * disciplinary cases); everything else here is a proactive/preventive
+ * activity carried out to stop that outcome happening - leading. */
+const LAGGING_TRACKER_KEYS = new Set(["incidents", "disciplinary-actions"]);
+export function natureOf(t: TrackerDef): "leading" | "lagging" {
+  return LAGGING_TRACKER_KEYS.has(t.key) ? "lagging" : "leading";
 }
 
 export function dateFieldOf(t: TrackerDef): string {
