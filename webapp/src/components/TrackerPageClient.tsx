@@ -9,6 +9,7 @@ import { computeSnapshot, Row } from "@/lib/aggregate";
 import { DEPARTMENTS, MONTH_NAMES } from "@/lib/constants";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
+import RiskMatrix from "@/components/RiskMatrix";
 import { exportTrackerPdf, exportTrackerPpt, exportTrackerExcel } from "@/lib/exportUtils";
 
 const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6";
@@ -202,6 +203,8 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
             ))}
           </div>
 
+          {tracker.key === "jsa" && <RiskMatrix rows={rows} />}
+
           {/* Department Performance + Monthly Performance Matrix */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             {snapshot.deptTable.length > 0 && (
@@ -253,6 +256,56 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
               </div>
             </ChartCard>
           </div>
+
+          {/* Advanced Analysis: overdue ageing + hotspot watchlist (only where applicable) */}
+          {(snapshot.aging || snapshot.hotspot.length > 0) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              {snapshot.aging && (
+                <ChartCard title="Overdue Ageing (open items)">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={snapshot.aging}>
+                      <CartesianGrid stroke={GRID} />
+                      <XAxis dataKey="label" tick={AXIS} />
+                      <YAxis tick={AXIS} allowDecimals={false} />
+                      <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        {snapshot.aging.map((d, i) => (
+                          <Cell key={i} fill={d.label === "0-7" ? TEAL : d.label === "8-15" ? GOLD : d.label === "16-30" ? "#f2994a" : CORAL} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              )}
+              {snapshot.hotspot.length > 0 && (
+                <ChartCard title="Repeat-Offender Watchlist (top 5 departments, high severity)">
+                  <ul className="mt-2 space-y-2">
+                    {snapshot.hotspot.map((h) => (
+                      <li key={h.department} className="flex items-center justify-between text-sm border-l-2 border-coral pl-3 py-1.5">
+                        <span>{h.department}</span>
+                        <span className="text-coral font-bold">{h.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </ChartCard>
+              )}
+            </div>
+          )}
+
+          {snapshot.forecast && (
+            <ChartCard title="Target vs Actual + Next-Month Forecast (linear projection)" className="mb-6">
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={snapshot.forecast}>
+                  <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tick={AXIS} />
+                  <YAxis tick={AXIS} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }} />
+                  <Line type="monotone" dataKey="target" name="Target" stroke={GOLD} strokeWidth={1.75} strokeDasharray="4 3" dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="actual" name="Actual" stroke={TEAL} strokeWidth={2.25} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
 
           {/* Entry form */}
           <div className="no-print">

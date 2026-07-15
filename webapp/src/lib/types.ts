@@ -24,6 +24,12 @@ export type Summary = {
   leadingMonthly: number[];
   laggingMonthly: number[];
   backlog: Record<string, number>;
+  backlogAging: Record<string, number>;
+  top10UnsafeActs: { label: string; value: number }[];
+  top10UnsafeConditions: { label: string; value: number }[];
+  top10Areas: { label: string; value: number }[];
+  costImpact: { lostDayCost: number; downtimeCost: number; downtimeMinTotal: number };
+  prior: { totalIncidents: number; recordableTotal: number; ltiFatalTotal: number; trainingPct: number; obsPct: number; caPct: number };
   settings: Record<string, number>;
   manhoursByMonth: number[];
 };

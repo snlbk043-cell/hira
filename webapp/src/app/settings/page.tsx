@@ -16,6 +16,20 @@ const SETTINGS_LABELS: Record<string, string> = {
   industry_benchmark_ltifr: "Industry Benchmark LTIFR",
 };
 
+const COST_LABELS: Record<string, string> = {
+  cost_per_lost_day: "Lost-Day Cost per Day (₹)",
+  cost_per_downtime_min: "Downtime Cost per Minute (₹)",
+};
+
+const PRIOR_YEAR_LABELS: Record<string, string> = {
+  py_trir: "Prior Year TRIR",
+  py_ltifr: "Prior Year LTIFR",
+  py_total_incidents: "Prior Year Total Incidents",
+  py_training_pct: "Prior Year Training Compliance %",
+  py_obs_pct: "Prior Year Obs Closure %",
+  py_ca_pct: "Prior Year CA Closure %",
+};
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [year, setYear] = useState(new Date().getFullYear());
@@ -94,6 +108,37 @@ export default function SettingsPage() {
           Save Settings
         </button>
         {message && <span className="ml-3 text-sm text-grey">{message}</span>}
+      </div>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1">Cost Parameters</div>
+        <p className="text-xs text-grey mb-3">Used only by the optional cost-impact tiles on the Executive Dashboard.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(COST_LABELS).map(([key, label]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{label}</label>
+              <input type="number" step="any" value={settings[key] ?? ""} onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <button onClick={saveSettings} className="mt-4 bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md">Save Settings</button>
+      </div>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1">Prior Year Actuals</div>
+        <p className="text-xs text-grey mb-3">
+          Type in last year&apos;s year-end figures for a genuine YoY comparison on Leadership Review — left at 0 (and
+          hidden from the comparison) until you enter real numbers.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(PRIOR_YEAR_LABELS).map(([key, label]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{label}</label>
+              <input type="number" step="any" value={settings[key] ?? ""} onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <button onClick={saveSettings} className="mt-4 bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md">Save Settings</button>
       </div>
 
       <div className="card p-4">

@@ -172,6 +172,99 @@ export async function GET(req: NextRequest) {
     safety_walkthroughs: await overdueCount("safety_walkthroughs"),
   };
 
+  // ---- backlog ageing (system-wide, across the same 4 registers) ----
+  async function agingBuckets(table: string) {
+    const rows = (await database.sql.unsafe(
+      `SELECT due_date FROM ${table} WHERE status = 'Overdue' ${deptFilter ? "AND department = $1" : ""}`,
+      deptFilter ? [department] : []
+    )) as Row[];
+    const buckets = { "0-7": 0, "8-15": 0, "16-30": 0, "30+": 0 };
+    const now = Date.now();
+    for (const r of rows) {
+      if (!r.due_date) continue;
+      const days = Math.floor((now - new Date(String(r.due_date)).getTime()) / 86400000);
+      if (days <= 7) buckets["0-7"]++;
+      else if (days <= 15) buckets["8-15"]++;
+      else if (days <= 30) buckets["16-30"]++;
+      else buckets["30+"]++;
+    }
+    return buckets;
+  }
+  const agingTables = ["corrective_actions", "hse_observations", "inspections", "safety_walkthroughs"];
+  const backlogAging = { "0-7": 0, "8-15": 0, "16-30": 0, "30+": 0 };
+  for (const t of agingTables) {
+    const b = await agingBuckets(t);
+    for (const k of Object.keys(backlogAging) as (keyof typeof backlogAging)[]) backlogAging[k] += b[k];
+  }
+
+  // ---- Top-10 Pareto lists ----
+  async function top10(table: string, dateCol: string, field: string) {
+    const f = buildFilter(dateCol, year, month, department, deptFilter);
+    const rows = (await database.sql.unsafe(
+      `SELECT "${field}" AS v FROM ${table} WHERE ${f.where}`, f.params
+    )) as Row[];
+    const counts: Record<string, number> = {};
+    for (const r of rows) {
+      if (!r.v) continue;
+      const v = String(r.v);
+      counts[v] = (counts[v] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([label, value]) => ({ label, value }));
+  }
+  const top10UnsafeActs = await top10("unsafe_acts", "report_date", "description");
+  const top10UnsafeConditions = await top10("unsafe_conditions", "report_date", "description");
+  const top10Areas = await top10("incidents", "incident_date", "area");
+
+  // ---- cost impact (real Settings-configured rates, no fabricated numbers) ----
+  const swaF = buildFilter("event_date", year, month, department, deptFilter);
+  const swaRows = (await database.sql.unsafe(
+    `SELECT downtime_min FROM stop_work_authority WHERE ${swaF.where}`, swaF.params
+  )) as Row[];
+  const downtimeTotal = swaRows.reduce((a, r) => a + (Number(r.downtime_min) || 0), 0);
+  const costImpact = {
+    lostDayCost: Math.round(lostDaysTotal * (settings.cost_per_lost_day || 8000)),
+    downtimeCost: Math.round(downtimeTotal * (settings.cost_per_downtime_min || 150)),
+    downtimeMinTotal: downtimeTotal,
+  };
+
+  // ---- prior period (for Top Movers) - same key metrics, one period back ----
+  async function priorPeriodMetrics() {
+    const pYear = month ? year : year - 1;
+    const pMonth = month ? (month === 1 ? 12 : month - 1) : 0;
+    const pYearForJan = month === 1 ? year - 1 : year;
+    const py = month === 1 ? pYearForJan : pYear;
+
+    const pIncF = buildFilter("incident_date", py, pMonth, department, deptFilter);
+    const pInc = (await database.sql.unsafe(
+      `SELECT classification FROM incidents WHERE ${pIncF.where}`, pIncF.params
+    )) as Row[];
+    const pRecordable = pInc.filter((r) => RECORDABLE_CLASSIFICATIONS.includes(String(r.classification))).length;
+    const pLtiFatal = pInc.filter((r) => r.classification === "Lost Time Injury" || r.classification === "Fatality").length;
+
+    async function pStatusPct(table: string, dateCol: string) {
+      const f = buildFilter(dateCol, py, pMonth, department, deptFilter);
+      const rows = (await database.sql.unsafe(
+        `SELECT status FROM ${table} WHERE ${f.where}`, f.params
+      )) as Row[];
+      const total = rows.length;
+      const closed = rows.filter((r) => r.status === "Completed").length;
+      return total ? (100 * closed) / total : 0;
+    }
+    const pTraining = await pStatusPct("training", "training_date");
+    const pObs = await pStatusPct("hse_observations", "obs_date");
+    const pCa = await pStatusPct("corrective_actions", "date_raised");
+
+    return {
+      totalIncidents: pInc.length,
+      recordableTotal: pRecordable,
+      ltiFatalTotal: pLtiFatal,
+      trainingPct: round1(pTraining),
+      obsPct: round1(pObs),
+      caPct: round1(pCa),
+    };
+  }
+  const prior = await priorPeriodMetrics();
+
   return Response.json({
     year,
     department,
@@ -198,6 +291,12 @@ export async function GET(req: NextRequest) {
     leadingMonthly,
     laggingMonthly,
     backlog,
+    backlogAging,
+    top10UnsafeActs,
+    top10UnsafeConditions,
+    top10Areas,
+    costImpact,
+    prior,
     settings,
     manhoursByMonth,
   });

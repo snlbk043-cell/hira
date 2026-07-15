@@ -106,6 +106,85 @@ function monthlyMatrix(tracker: TrackerDef, rows: Row[]): MonthRow[] {
   });
 }
 
+const SEVERE_VALUES = new Set(["Critical", "High", "Major"]);
+
+/** Overdue-ageing buckets (0-7/8-15/16-30/30+ days past due, open items only) -
+ * generic for any tracker that has both a status field and a "due_date" column,
+ * mirroring the Excel Advanced Analysis ageing chart. */
+function agingChart(tracker: TrackerDef, rows: Row[]): { label: string; value: number }[] | null {
+  const statusField = fieldWithRole(tracker.fields, "status");
+  const dueField = tracker.fields.find((f) => f.name === "due_date");
+  if (!statusField || !dueField) return null;
+  const buckets = { "0-7": 0, "8-15": 0, "16-30": 0, "30+": 0 };
+  const now = Date.now();
+  for (const r of rows) {
+    if (CLOSED_LIKE.has(String(r[statusField.name]))) continue;
+    const due = r[dueField.name];
+    if (!due) continue;
+    const days = Math.floor((now - new Date(String(due)).getTime()) / 86400000);
+    if (days < 0) continue;
+    if (days <= 7) buckets["0-7"]++;
+    else if (days <= 15) buckets["8-15"]++;
+    else if (days <= 30) buckets["16-30"]++;
+    else buckets["30+"]++;
+  }
+  return Object.entries(buckets).map(([label, value]) => ({ label, value }));
+}
+
+/** Repeat-offender department watchlist: top-5 departments by count of
+ * Critical/High/Major severity items - generic for any tracker with both a
+ * department field and a risk/severity field. */
+function hotspotTable(tracker: TrackerDef, rows: Row[]): { department: string; count: number }[] {
+  const deptField = fieldWithRole(tracker.fields, "department");
+  const riskField = fieldWithRole(tracker.fields, "risk");
+  if (!deptField || !riskField) return [];
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    if (!SEVERE_VALUES.has(String(r[riskField.name]))) continue;
+    const d = String(r[deptField.name] ?? "(blank)");
+    counts.set(d, (counts.get(d) || 0) + 1);
+  }
+  return [...counts.entries()].map(([department, count]) => ({ department, count })).sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+export type ForecastPoint = { label: string; target: number | null; actual: number | null };
+
+/** Target-vs-Actual monthly trend with a 13th "Next (fcst)" point projected by
+ * simple linear regression over the 12 actual monthly values - generic for any
+ * tracker with a target_num/actual_num field pair, mirrors the Excel system's
+ * TREND()-based forecast blocks (a real projection, not a fabricated number). */
+function forecastTrend(tracker: TrackerDef, rows: Row[]): ForecastPoint[] | null {
+  const targetField = fieldWithRole(tracker.fields, "target_num");
+  const actualField = fieldWithRole(tracker.fields, "actual_num");
+  if (!targetField || !actualField) return null;
+  const dateField = dateFieldOf(tracker);
+  const targetSum = new Array(12).fill(0);
+  const actualSum = new Array(12).fill(0);
+  for (const r of rows) {
+    const v = r[dateField];
+    if (!v) continue;
+    const d = new Date(String(v));
+    if (isNaN(d.getTime())) continue;
+    const m = d.getMonth();
+    targetSum[m] += Number(r[targetField.name]) || 0;
+    actualSum[m] += Number(r[actualField.name]) || 0;
+  }
+  // least-squares linear regression over the 12 actual points -> project month 13
+  const n = 12;
+  const xs = Array.from({ length: n }, (_, i) => i + 1);
+  const xMean = xs.reduce((a, b) => a + b, 0) / n;
+  const yMean = actualSum.reduce((a, b) => a + b, 0) / n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += (xs[i] - xMean) * (actualSum[i] - yMean); den += (xs[i] - xMean) ** 2; }
+  const slope = den ? num / den : 0;
+  const intercept = yMean - slope * xMean;
+  const forecast = Math.max(0, Math.round(intercept + slope * 13));
+
+  const points: ForecastPoint[] = MONTHS.map((m, i) => ({ label: m, target: targetSum[i], actual: actualSum[i] }));
+  points.push({ label: "Next (fcst)", target: targetSum[11], actual: forecast });
+  return points;
+}
+
 /** Generic KPI + chart computation, driven purely by each tracker's field roles
  * (date/department/status/category/risk/metric_pct) - same spec-driven approach
  * as the Excel system's _kpi_defs/_register_calc, so every one of the 25 trackers
@@ -173,5 +252,8 @@ export function computeSnapshot(tracker: TrackerDef, rows: Row[]) {
     hasMetric: !!metricField,
     metricLabel: metricField?.label,
     hasStatus: !!statusField,
+    aging: agingChart(tracker, rows),
+    hotspot: hotspotTable(tracker, rows),
+    forecast: forecastTrend(tracker, rows),
   };
 }

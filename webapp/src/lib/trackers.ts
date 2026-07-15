@@ -2,7 +2,7 @@ import { RISK_LEVELS } from "./constants";
 import { ColumnSpec } from "./tableApi";
 
 export type FieldType = "date" | "text" | "number" | "boolean" | "select" | "department";
-export type FieldRole = "date" | "department" | "status" | "category" | "risk" | "metric_pct" | "metric_num";
+export type FieldRole = "date" | "department" | "status" | "category" | "risk" | "metric_pct" | "metric_num" | "target_num" | "actual_num";
 
 export type TrackerField = {
   name: string;
@@ -11,6 +11,9 @@ export type TrackerField = {
   options?: string[];
   required?: boolean;
   role?: FieldRole;
+  /** Overrides the DB column type when it differs from the UI widget type
+   * (e.g. a numeric field rendered as a 1-5 dropdown). */
+  dataType?: "text" | "number" | "date" | "boolean";
 };
 
 export type TrackerDef = {
@@ -34,8 +37,8 @@ export const TRACKERS: TrackerDef[] = [
       { name: "department", label: "Department", type: "department", required: true, role: "department" },
       { name: "location", label: "Location", type: "text" },
       { name: "topic", label: "Topic", type: "select", options: ["PPE Usage","Fire Safety","Working at Heights","Manual Handling","Electrical Safety","Chemical Safety","Housekeeping","Heat Stress","Slip Trip Fall","Confined Space","LOTO","Emergency Procedures","Hot Work","Machine Guarding"], role: "category" },
-      { name: "target_attendees", label: "Target Attendees", type: "number" },
-      { name: "actual_attendees", label: "Actual Attendees", type: "number" },
+      { name: "target_attendees", label: "Target Attendees", type: "number", role: "target_num" },
+      { name: "actual_attendees", label: "Actual Attendees", type: "number", role: "actual_num" },
       { name: "attendance_pct", label: "Attendance %", type: "number", role: "metric_pct" },
       { name: "duration_min", label: "Duration (min)", type: "number" },
       { name: "safety_category", label: "Safety Category", type: "text" },
@@ -54,6 +57,8 @@ export const TRACKERS: TrackerDef[] = [
       { name: "hazards_identified", label: "Hazards Identified", type: "number" },
       { name: "approval_status", label: "Approval Status", type: "select", options: ["Approved","Pending Review","Revision Required","Rejected"], role: "status" },
       { name: "controls_implemented", label: "Controls Implemented", type: "text" },
+      { name: "likelihood", label: "Likelihood (1-5)", type: "select", options: ["1","2","3","4","5"], dataType: "number" },
+      { name: "consequence", label: "Consequence (1-5)", type: "select", options: ["1","2","3","4","5"], dataType: "number" },
     ],
   },
   {
@@ -146,8 +151,8 @@ export const TRACKERS: TrackerDef[] = [
       { name: "department", label: "Department", type: "department", role: "department" },
       { name: "bulletin_type", label: "Type", type: "select", options: ["Safety Alert","Bulletin","Toolbox Topic","Lesson Learned","Best Practice","Advisory"], role: "category" },
       { name: "distribution_method", label: "Distribution Method", type: "select", options: ["Email","Notice Board","App Notification","All Channels"] },
-      { name: "target_reach", label: "Target Reach", type: "number" },
-      { name: "actual_reach", label: "Actual Reach", type: "number" },
+      { name: "target_reach", label: "Target Reach", type: "number", role: "target_num" },
+      { name: "actual_reach", label: "Actual Reach", type: "number", role: "actual_num" },
       { name: "reach_pct", label: "Reach %", type: "number", role: "metric_pct" },
       { name: "status", label: "Status", type: "select", options: ["Issued","Acknowledged","Closed"], role: "status" },
       { name: "priority", label: "Priority", type: "select", options: ["Critical","High","Medium","Low"] },
@@ -161,8 +166,8 @@ export const TRACKERS: TrackerDef[] = [
       { name: "department", label: "Department", type: "department", role: "department" },
       { name: "location", label: "Location", type: "text" },
       { name: "drill_type", label: "Drill Type", type: "select", options: ["Fire Evacuation","Chemical Spill","Medical Emergency","Gas Leak","Confined Space Rescue","Earthquake"], role: "category" },
-      { name: "target_participants", label: "Target Participants", type: "number" },
-      { name: "actual_participants", label: "Actual Participants", type: "number" },
+      { name: "target_participants", label: "Target Participants", type: "number", role: "target_num" },
+      { name: "actual_participants", label: "Actual Participants", type: "number", role: "actual_num" },
       { name: "participation_pct", label: "Participation %", type: "number", role: "metric_pct" },
       { name: "target_response_min", label: "Target Response (min)", type: "number" },
       { name: "actual_response_min", label: "Actual Response (min)", type: "number" },
@@ -217,8 +222,8 @@ export const TRACKERS: TrackerDef[] = [
     fields: [
       { name: "review_date", label: "Date", type: "date", required: true, role: "date" },
       { name: "department", label: "Department", type: "department", role: "department" },
-      { name: "members_invited", label: "Members Invited", type: "number" },
-      { name: "members_attended", label: "Members Attended", type: "number" },
+      { name: "members_invited", label: "Members Invited", type: "number", role: "target_num" },
+      { name: "members_attended", label: "Members Attended", type: "number", role: "actual_num" },
       { name: "attendance_pct", label: "Attendance %", type: "number", role: "metric_pct" },
       { name: "decisions_made", label: "Decisions Made", type: "number" },
       { name: "actions_assigned", label: "Actions Assigned", type: "number" },
@@ -397,7 +402,7 @@ export function dateFieldOf(t: TrackerDef): string {
 export function toColumnSpecs(t: TrackerDef): ColumnSpec[] {
   return t.fields.map((f) => ({
     name: f.name,
-    type: f.type === "select" || f.type === "department" ? "text" : f.type,
+    type: f.dataType ?? (f.type === "select" || f.type === "department" ? "text" : f.type),
     required: f.required,
   }));
 }

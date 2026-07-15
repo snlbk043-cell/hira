@@ -12,7 +12,9 @@ export async function POST(req: NextRequest) {
   const updates = (await req.json()) as Record<string, string>;
   const database = db();
   for (const [key, value] of Object.entries(updates)) {
-    await database.sql`UPDATE settings SET value = ${String(value)} WHERE key = ${key}`;
+    await database.sql`
+      INSERT INTO settings (key, value) VALUES (${key}, ${String(value)})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
   }
   return Response.json({ ok: true });
 }

@@ -8,6 +8,7 @@ import {
 import Filters from "@/components/Filters";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
+import Gauge from "@/components/Gauge";
 import { useSummary } from "@/lib/useSummary";
 import { MONTHS } from "@/lib/types";
 
@@ -48,6 +49,22 @@ export default function ExecutiveDashboard() {
     { metric: "PTW Compliance", actual: data.ptw.pct, target: data.settings.ptw_compliance_target_pct ?? 95 },
     { metric: "JSA Approved", actual: data.jsa.pct, target: 90 },
     { metric: "Walkthroughs Done", actual: data.walk.pct, target: 85 },
+  ];
+
+  const settings = data.settings;
+  function rag(actual: number, target: number, higherIsBetter = true) {
+    const ok = higherIsBetter ? actual >= target : actual <= target;
+    const amberBand = settings.amber_band ?? 0.8;
+    const nearMiss = higherIsBetter ? actual >= target * amberBand : actual <= target / amberBand;
+    return ok ? "🟢 Green" : nearMiss ? "🟡 Amber" : "🔴 Red";
+  }
+  const ragScorecard = [
+    { metric: "TRIR", actual: data.TRIR, target: data.settings.trir_target ?? 1.0, status: rag(data.TRIR, data.settings.trir_target ?? 1.0, false) },
+    { metric: "LTIFR", actual: data.LTIFR, target: data.settings.ltifr_target ?? 2.0, status: rag(data.LTIFR, data.settings.ltifr_target ?? 2.0, false) },
+    { metric: "Training Compliance %", actual: data.training.pct, target: data.settings.training_target_pct ?? 95, status: rag(data.training.pct, data.settings.training_target_pct ?? 95) },
+    { metric: "Obs Closure %", actual: data.obs.pct, target: data.settings.obs_closure_target_pct ?? 90, status: rag(data.obs.pct, data.settings.obs_closure_target_pct ?? 90) },
+    { metric: "CA Closure %", actual: data.ca.pct, target: data.settings.ca_closure_target_pct ?? 90, status: rag(data.ca.pct, data.settings.ca_closure_target_pct ?? 90) },
+    { metric: "PTW Compliance %", actual: data.ptw.pct, target: data.settings.ptw_compliance_target_pct ?? 95, status: rag(data.ptw.pct, data.settings.ptw_compliance_target_pct ?? 95) },
   ];
 
   return (
@@ -176,6 +193,82 @@ export default function ExecutiveDashboard() {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
+      </div>
+
+      <ChartCard title="Compliance Gauges — cross-tracker leading vs lagging" className="mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
+          <Gauge value={data.training.pct} label="Training Compliance" color={TEAL} />
+          <Gauge value={data.obs.pct} label="Obs Closure" color={GOLD} />
+          <Gauge value={data.ca.pct} label="CA Closure" color={PURPLE} />
+          <Gauge value={data.ptw.pct} label="PTW Compliance" color={BLUE} />
+          <Gauge value={data.jsa.pct} label="JSA Approved" color={TEAL} />
+        </div>
+      </ChartCard>
+
+      <ChartCard title="RAG Compliance Scorecard" className="mb-4">
+        <div className="overflow-x-auto mt-1">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left p-2 text-grey">Metric</th>
+                <th className="text-right p-2 text-grey">Actual</th>
+                <th className="text-right p-2 text-grey">Target</th>
+                <th className="text-center p-2 text-grey">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ragScorecard.map((r) => (
+                <tr key={r.metric} className="border-t border-border">
+                  <td className="p-2">{r.metric}</td>
+                  <td className="p-2 text-right font-semibold">{r.actual}</td>
+                  <td className="p-2 text-right text-grey">{r.target}</td>
+                  <td className="p-2 text-center">{r.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </ChartCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <ChartCard title="Top 10 Unsafe Acts">
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={data.top10UnsafeActs.map((d) => ({ name: d.label, count: d.value }))} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid stroke={GRID} horizontal={false} />
+              <XAxis type="number" tick={AXIS} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ ...AXIS, fontSize: 9 }} width={110} />
+              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Bar dataKey="count" fill={GOLD} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="Top 10 Unsafe Conditions">
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={data.top10UnsafeConditions.map((d) => ({ name: d.label, count: d.value }))} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid stroke={GRID} horizontal={false} />
+              <XAxis type="number" tick={AXIS} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ ...AXIS, fontSize: 9 }} width={110} />
+              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Bar dataKey="count" fill={BLUE} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="Top 10 High-Risk Areas">
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={data.top10Areas.map((d) => ({ name: d.label, count: d.value }))} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid stroke={GRID} horizontal={false} />
+              <XAxis type="number" tick={AXIS} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ ...AXIS, fontSize: 9 }} width={110} />
+              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Bar dataKey="count" fill={CORAL} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <KpiCard icon="💰" label="Est. Lost-Day Cost" value={`₹${data.costImpact.lostDayCost.toLocaleString()}`} sub="Incident lost days × rate" accent="coral" />
+        <KpiCard icon="⏱️" label="Est. Downtime Cost" value={`₹${data.costImpact.downtimeCost.toLocaleString()}`} sub={`${data.costImpact.downtimeMinTotal} min total`} accent="gold" />
       </div>
     </div>
   );

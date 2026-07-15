@@ -53,6 +53,32 @@ export default function LeadershipDashboard() {
   const levels = Object.keys(data.riskRatingByDept);
   const depts = Array.from(new Set(levels.flatMap((l) => Object.keys(data.riskRatingByDept[l]))));
 
+  // Top Movers: period-over-period change, normalised so "higher = better" for every row
+  function pctChange(cur: number, prev: number, goodDirection: "up" | "down") {
+    if (prev === 0) return cur === 0 ? 0 : (goodDirection === "up" ? 1 : -1);
+    const raw = (cur - prev) / prev;
+    return goodDirection === "up" ? raw : -raw;
+  }
+  const movers = [
+    { label: "Total Incidents", change: pctChange(data.totalIncidents, data.prior.totalIncidents, "down"), cur: data.totalIncidents, prev: data.prior.totalIncidents },
+    { label: "Recordable", change: pctChange(data.recordableTotal, data.prior.recordableTotal, "down"), cur: data.recordableTotal, prev: data.prior.recordableTotal },
+    { label: "Training Compliance %", change: pctChange(data.training.pct, data.prior.trainingPct, "up"), cur: data.training.pct, prev: data.prior.trainingPct },
+    { label: "Obs Closure %", change: pctChange(data.obs.pct, data.prior.obsPct, "up"), cur: data.obs.pct, prev: data.prior.obsPct },
+    { label: "CA Closure %", change: pctChange(data.ca.pct, data.prior.caPct, "up"), cur: data.ca.pct, prev: data.prior.caPct },
+  ].sort((a, b) => b.change - a.change);
+  const bestMovers = movers.slice(0, 3);
+  const worstMovers = [...movers].reverse().slice(0, 3);
+
+  // YoY: current YTD vs Settings' prior-year actuals (0 until the user fills them in)
+  const yoy = [
+    { label: "TRIR", cur: data.TRIR, py: data.settings.py_trir ?? 0 },
+    { label: "LTIFR", cur: data.LTIFR, py: data.settings.py_ltifr ?? 0 },
+    { label: "Total Incidents", cur: data.totalIncidents, py: data.settings.py_total_incidents ?? 0 },
+    { label: "Training Compliance %", cur: data.training.pct, py: data.settings.py_training_pct ?? 0 },
+    { label: "Obs Closure %", cur: data.obs.pct, py: data.settings.py_obs_pct ?? 0 },
+    { label: "CA Closure %", cur: data.ca.pct, py: data.settings.py_ca_pct ?? 0 },
+  ];
+
   const insights: string[] = [];
   insights.push(
     `TRIR is ${data.TRIR} and LTIFR is ${data.LTIFR} against targets of ≤${data.settings.trir_target ?? 1} and ≤${data.settings.ltifr_target ?? 2} — ${
@@ -114,6 +140,45 @@ export default function LeadershipDashboard() {
         </ChartCard>
       </div>
 
+      <ChartCard title="Backlog Ageing (open overdue items, system-wide)" className="mb-4">
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={Object.entries(data.backlogAging).map(([bucket, count]) => ({ bucket, count }))}>
+            <CartesianGrid stroke={GRID} />
+            <XAxis dataKey="bucket" tick={AXIS} />
+            <YAxis tick={AXIS} allowDecimals={false} />
+            <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              {Object.keys(data.backlogAging).map((bucket, i) => (
+                <Cell key={i} fill={bucket === "0-7" ? TEAL : bucket === "8-15" ? GOLD : bucket === "16-30" ? "#f2994a" : CORAL} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <ChartCard title="🟢 Top Movers — Best Improvement (vs prior period)">
+          <ul className="mt-2 space-y-2">
+            {bestMovers.map((m) => (
+              <li key={m.label} className="flex items-center justify-between text-sm border-l-2 border-teal pl-3 py-1">
+                <span>{m.label}</span>
+                <span className="text-teal font-semibold">{m.prev} → {m.cur}</span>
+              </li>
+            ))}
+          </ul>
+        </ChartCard>
+        <ChartCard title="🔴 Top Movers — Biggest Regression (vs prior period)">
+          <ul className="mt-2 space-y-2">
+            {worstMovers.map((m) => (
+              <li key={m.label} className="flex items-center justify-between text-sm border-l-2 border-coral pl-3 py-1">
+                <span>{m.label}</span>
+                <span className="text-coral font-semibold">{m.prev} → {m.cur}</span>
+              </li>
+            ))}
+          </ul>
+        </ChartCard>
+      </div>
+
       <ChartCard title="System Health — RAG status of all 25 trackers (spider chart)" className="mb-4">
         {health ? (
           <ResponsiveContainer width="100%" height={420}>
@@ -154,6 +219,39 @@ export default function LeadershipDashboard() {
                       </td>
                     );
                   })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </ChartCard>
+
+      <ChartCard title="Year-over-Year Comparison — current YTD vs prior year (set prior-year actuals on Settings)" className="mb-4">
+        <div className="overflow-x-auto mt-1">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left p-2 text-grey">Metric</th>
+                <th className="text-right p-2 text-grey">Current YTD</th>
+                <th className="text-right p-2 text-grey">Prior Year</th>
+                <th className="text-right p-2 text-grey">Δ vs Prior Year</th>
+              </tr>
+            </thead>
+            <tbody>
+              {yoy.map((r) => (
+                <tr key={r.label} className="border-t border-border">
+                  <td className="p-2">{r.label}</td>
+                  <td className="p-2 text-right font-semibold">{r.cur}</td>
+                  <td className="p-2 text-right text-grey">{r.py}</td>
+                  <td className="p-2 text-right">
+                    {r.py === 0 ? (
+                      <span className="text-grey text-xs">(enter prior year data)</span>
+                    ) : (
+                      <span className={r.cur - r.py <= 0 ? "text-teal" : "text-coral"}>
+                        {(((r.cur - r.py) / r.py) * 100).toFixed(1)}%
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
