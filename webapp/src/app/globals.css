@@ -50,3 +50,15 @@ input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--teal);
   outline-offset: 1px;
 }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; color: black !important; }
+  main#print-area { width: 100% !important; }
+  main#print-area * {
+    color: black !important;
+    background: white !important;
+    border-color: #ccc !important;
+  }
+  main#print-area .card { break-inside: avoid; box-shadow: none; }
+}
