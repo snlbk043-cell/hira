@@ -15,10 +15,13 @@ function NavLink({ href, icon, label, active, onClick }: { href: string; icon: s
     <Link
       href={href}
       onClick={onClick}
-      className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
-        active ? "bg-teal text-[#0b1220] font-semibold" : "text-grey hover:text-white hover:bg-card-2"
+      className={`relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+        active
+          ? "bg-gradient-to-r from-teal/25 to-teal/5 text-teal font-semibold shadow-[inset_0_0_0_1px_rgba(20,184,166,0.35)]"
+          : "text-grey hover:text-white hover:bg-card-2"
       }`}
     >
+      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[3px] rounded-full bg-teal shadow-[0_0_8px_2px_rgba(20,184,166,0.7)]" />}
       <span className="text-base leading-none w-5 text-center shrink-0">{icon}</span>
       <span className="truncate">{label}</span>
     </Link>
@@ -28,9 +31,17 @@ function NavLink({ href, icon, label, active, onClick }: { href: string; icon: s
 function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="px-4 py-4 border-b border-border">
-        <div className="font-bold text-teal text-sm tracking-wide">🧭 RCPL SAFETY</div>
-        <div className="text-[11px] text-grey mt-0.5">Campa Cola CSD Plant · EHS System</div>
+      <div className="px-4 py-4 border-b border-border flex items-center gap-2.5">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
+          style={{ background: "linear-gradient(155deg, #14b8a633, #14b8a612)", border: "1px solid #14b8a640", boxShadow: "0 4px 14px -6px #14b8a680" }}
+        >
+          🧭
+        </div>
+        <div>
+          <div className="font-bold text-white text-sm tracking-wide">RCPL SAFETY</div>
+          <div className="text-[11px] text-grey mt-0.5">Campa Cola CSD Plant · EHS System</div>
+        </div>
       </div>
 
       <div className="px-2 py-3">

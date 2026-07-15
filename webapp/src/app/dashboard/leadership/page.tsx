@@ -12,6 +12,15 @@ import { useSummary } from "@/lib/useSummary";
 const TEAL = "#14b8a6", CORAL = "#f0625a", GOLD = "#f5a524";
 const AXIS = { stroke: "#94a3b8", fontSize: 11 };
 const GRID = "#22314f";
+const TOOLTIP_STYLE = {
+  background: "rgba(17,28,51,0.96)",
+  border: "1px solid #22314f",
+  borderRadius: 10,
+  color: "white",
+  boxShadow: "0 12px 28px -12px rgba(0,0,0,0.6)",
+  backdropFilter: "blur(6px)",
+};
+const TOOLTIP_CURSOR = { fill: "rgba(148,163,184,0.06)" };
 
 function scoreColor(score: number) {
   if (score >= 85) return TEAL;
@@ -120,7 +129,7 @@ export default function LeadershipDashboard() {
               <CartesianGrid stroke={GRID} horizontal={false} />
               <XAxis type="number" domain={[0, 100]} tick={AXIS} />
               <YAxis type="category" dataKey="name" tick={AXIS} width={100} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="score" radius={[0, 4, 4, 0]}>
                 {deptSorted.map(([, score], i) => <Cell key={i} fill={scoreColor(score)} />)}
               </Bar>
@@ -146,7 +155,7 @@ export default function LeadershipDashboard() {
             <CartesianGrid stroke={GRID} />
             <XAxis dataKey="bucket" tick={AXIS} />
             <YAxis tick={AXIS} allowDecimals={false} />
-            <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
             <Bar dataKey="count" radius={[4, 4, 0, 0]}>
               {Object.keys(data.backlogAging).map((bucket, i) => (
                 <Cell key={i} fill={bucket === "0-7" ? TEAL : bucket === "8-15" ? GOLD : bucket === "16-30" ? "#f2994a" : CORAL} />
@@ -188,7 +197,7 @@ export default function LeadershipDashboard() {
               <PolarRadiusAxis domain={[0, 2]} tickCount={3} tick={{ fill: "#94a3b8", fontSize: 9 }} />
               <Radar name="Health" dataKey="score" stroke={TEAL} fill={TEAL} fillOpacity={0.35} />
               <Tooltip
-                contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }}
+                contentStyle={TOOLTIP_STYLE}
                 formatter={(value, _name, item) => [`${item.payload.detail} (${value === 2 ? "Green" : value === 1 ? "Amber" : "Red"})`, item.payload.label]}
               />
             </RadarChart>

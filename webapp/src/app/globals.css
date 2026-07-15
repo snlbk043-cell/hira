@@ -29,14 +29,30 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1100px 560px at 8% -8%, rgba(20,184,166,0.10), transparent 60%),
+    radial-gradient(900px 520px at 100% 0%, rgba(139,92,246,0.09), transparent 55%),
+    radial-gradient(800px 600px at 50% 110%, rgba(245,165,36,0.06), transparent 55%),
+    var(--background);
   color: var(--foreground);
 }
 
+* { scrollbar-color: var(--border) transparent; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--grey); }
+
 .card {
-  background: var(--card);
+  background: linear-gradient(165deg, var(--card) 0%, var(--card-2) 130%);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 0.9rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25), 0 8px 24px -16px rgba(0,0,0,0.5);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.card:hover {
+  border-color: rgba(148,163,184,0.35);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 16px 32px -14px rgba(0,0,0,0.65);
 }
 
 input, select, textarea {
@@ -45,10 +61,21 @@ input, select, textarea {
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
   color: white;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--teal);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(20,184,166,0.18);
+}
+
+@keyframes kpi-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 @media print {

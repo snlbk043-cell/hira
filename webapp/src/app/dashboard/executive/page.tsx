@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from "recharts";
@@ -15,6 +15,20 @@ import { MONTHS } from "@/lib/types";
 const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6", BLUE = "#0b6ea8";
 const AXIS = { stroke: "#94a3b8", fontSize: 11 };
 const GRID = "#22314f";
+const TOOLTIP_STYLE = {
+  background: "rgba(17,28,51,0.96)",
+  border: "1px solid #22314f",
+  borderRadius: 10,
+  color: "white",
+  boxShadow: "0 12px 28px -12px rgba(0,0,0,0.6)",
+  backdropFilter: "blur(6px)",
+};
+const TOOLTIP_CURSOR = { fill: "rgba(148,163,184,0.06)" };
+const RAG_PILL: Record<string, string> = {
+  "🟢 Green": "bg-teal/15 text-teal border border-teal/30",
+  "🟡 Amber": "bg-gold/15 text-gold border border-gold/30",
+  "🔴 Red": "bg-coral/15 text-coral border border-coral/30",
+};
 
 export default function ExecutiveDashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
@@ -91,7 +105,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid stroke={GRID} horizontal={false} />
               <XAxis type="number" tick={AXIS} />
               <YAxis type="category" dataKey="name" tick={AXIS} width={130} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                 {pyramid.map((_, i) => <Cell key={i} fill={pyramidColors[i]} />)}
               </Bar>
@@ -104,7 +118,7 @@ export default function ExecutiveDashboard() {
               <Pie data={pyramid} dataKey="count" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
                 {pyramid.map((_, i) => <Cell key={i} fill={pyramidColors[i]} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
             </PieChart>
           </ResponsiveContainer>
@@ -114,28 +128,48 @@ export default function ExecutiveDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <ChartCard title="TRIR & LTIFR Trend">
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={monthly}>
-              <CartesianGrid stroke={GRID} />
+            <AreaChart data={monthly}>
+              <defs>
+                <linearGradient id="trirFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={CORAL} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={CORAL} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="ltifrFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={GOLD} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={GOLD} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="month" tick={AXIS} />
               <YAxis tick={AXIS} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: GRID, strokeWidth: 1 }} />
               <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-              <Line type="monotone" dataKey="trir" name="TRIR" stroke={CORAL} strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="ltifr" name="LTIFR" stroke={GOLD} strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
+              <Area type="monotone" dataKey="trir" name="TRIR" stroke={CORAL} strokeWidth={2.25} fill="url(#trirFill)" dot={{ r: 3, fill: CORAL, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              <Area type="monotone" dataKey="ltifr" name="LTIFR" stroke={GOLD} strokeWidth={2.25} fill="url(#ltifrFill)" dot={{ r: 3, fill: GOLD, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Leading vs Lagging Activity">
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={monthly}>
-              <CartesianGrid stroke={GRID} />
+            <AreaChart data={monthly}>
+              <defs>
+                <linearGradient id="leadingFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={TEAL} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={TEAL} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="laggingFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={CORAL} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={CORAL} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="month" tick={AXIS} />
               <YAxis tick={AXIS} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: GRID, strokeWidth: 1 }} />
               <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-              <Line type="monotone" dataKey="leading" name="Leading" stroke={TEAL} strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="lagging" name="Lagging (Incidents)" stroke={CORAL} strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
+              <Area type="monotone" dataKey="leading" name="Leading" stroke={TEAL} strokeWidth={2.25} fill="url(#leadingFill)" dot={{ r: 3, fill: TEAL, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              <Area type="monotone" dataKey="lagging" name="Lagging (Incidents)" stroke={CORAL} strokeWidth={2.25} fill="url(#laggingFill)" dot={{ r: 3, fill: CORAL, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            </AreaChart>
           </ResponsiveContainer>
           <p className="text-xs text-grey mt-2">
             Leading:Lagging ratio this year: <span className="text-teal font-semibold">{ratio.toFixed(1)}:1</span>
@@ -153,7 +187,7 @@ export default function ExecutiveDashboard() {
               <Radar name="Actual" dataKey="actual" stroke={TEAL} fill={TEAL} fillOpacity={0.35} />
               <Radar name="Target" dataKey="target" stroke={CORAL} fill={CORAL} fillOpacity={0.08} strokeDasharray="4 3" />
               <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
             </RadarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -163,7 +197,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid stroke={GRID} />
               <XAxis dataKey="name" tick={{ ...AXIS, fontSize: 9 }} interval={0} angle={-25} textAnchor="end" height={70} />
               <YAxis tick={AXIS} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="count" fill={CORAL} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -177,7 +211,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid stroke={GRID} />
               <XAxis dataKey="month" tick={AXIS} />
               <YAxis tick={AXIS} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="incidents" fill={BLUE} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -188,7 +222,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid stroke={GRID} horizontal={false} />
               <XAxis type="number" tick={AXIS} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={AXIS} width={90} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="count" fill={PURPLE} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -222,7 +256,9 @@ export default function ExecutiveDashboard() {
                   <td className="p-2">{r.metric}</td>
                   <td className="p-2 text-right font-semibold">{r.actual}</td>
                   <td className="p-2 text-right text-grey">{r.target}</td>
-                  <td className="p-2 text-center">{r.status}</td>
+                  <td className="p-2 text-center">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${RAG_PILL[r.status]}`}>{r.status}</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -237,7 +273,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid stroke={GRID} horizontal={false} />
               <XAxis type="number" tick={AXIS} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ ...AXIS, fontSize: 9 }} width={110} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="count" fill={GOLD} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -248,7 +284,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid stroke={GRID} horizontal={false} />
               <XAxis type="number" tick={AXIS} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ ...AXIS, fontSize: 9 }} width={110} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="count" fill={BLUE} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -259,7 +295,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid stroke={GRID} horizontal={false} />
               <XAxis type="number" tick={AXIS} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ ...AXIS, fontSize: 9 }} width={110} />
-              <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
               <Bar dataKey="count" fill={CORAL} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>

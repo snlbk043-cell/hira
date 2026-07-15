@@ -1,5 +1,6 @@
 import { TrackerDef, TrackerField, dateFieldOf } from "./trackers";
 import { CLOSED_LIKE } from "./constants";
+import { bespokeKpis } from "./kpiDefs";
 
 export type Row = Record<string, string | number | boolean | null>;
 
@@ -189,7 +190,7 @@ function forecastTrend(tracker: TrackerDef, rows: Row[]): ForecastPoint[] | null
  * (date/department/status/category/risk/metric_pct) - same spec-driven approach
  * as the Excel system's _kpi_defs/_register_calc, so every one of the 25 trackers
  * gets a sensible dashboard without hand-writing 25 bespoke aggregations. */
-export function computeSnapshot(tracker: TrackerDef, rows: Row[]) {
+function genericKpis(tracker: TrackerDef, rows: Row[]): Kpi[] {
   const total = rows.length;
   const kpis: Kpi[] = [{ icon: "📋", label: "Total Records", value: String(total), accent: "teal" }];
 
@@ -232,6 +233,18 @@ export function computeSnapshot(tracker: TrackerDef, rows: Row[]) {
     return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
   kpis.push({ icon: "🗓️", label: "This Month", value: String(thisMonthCount), accent: "purple" });
+
+  return kpis;
+}
+
+export function computeSnapshot(tracker: TrackerDef, rows: Row[]) {
+  const kpis: Kpi[] = bespokeKpis(tracker.key, rows) ?? genericKpis(tracker, rows);
+
+  const statusField = fieldWithRole(tracker.fields, "status");
+  const riskField = fieldWithRole(tracker.fields, "risk");
+  const metricField = fieldWithRole(tracker.fields, "metric_pct");
+  const deptField = fieldWithRole(tracker.fields, "department");
+  const dateField = dateFieldOf(tracker);
 
   const charts: ChartSpec[] = [{ type: "trend", title: "Monthly Trend", data: monthlyTrend(rows, dateField) }];
 

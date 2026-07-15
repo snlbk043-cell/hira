@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { trackerByKey } from "@/lib/trackers";
+import { trackerByKey, dateFieldOf } from "@/lib/trackers";
 import { computeSnapshot, Row } from "@/lib/aggregate";
 import { DEPARTMENTS, MONTH_NAMES } from "@/lib/constants";
 import KpiCard from "@/components/KpiCard";
@@ -16,6 +16,15 @@ const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6";
 const PALETTE = [TEAL, GOLD, CORAL, PURPLE, "#0b6ea8", "#22c55e", "#eab308", "#94a3b8"];
 const AXIS = { stroke: "#94a3b8", fontSize: 11 };
 const GRID = "#22314f";
+const TOOLTIP_STYLE = {
+  background: "rgba(17,28,51,0.96)",
+  border: "1px solid #22314f",
+  borderRadius: 10,
+  color: "white",
+  boxShadow: "0 12px 28px -12px rgba(0,0,0,0.6)",
+  backdropFilter: "blur(6px)",
+};
+const TOOLTIP_CURSOR = { fill: "rgba(148,163,184,0.06)" };
 
 function monthRange(year: number, month: number) {
   if (!month) return { from: `${year}-01-01`, to: `${year}-12-31` };
@@ -27,6 +36,14 @@ function monthRange(year: number, month: number) {
 export default function TrackerPageClient({ trackerKey }: { trackerKey: string }) {
   const tracker = trackerByKey(trackerKey)!;
   const endpoint = `/api/tracker/${trackerKey}`;
+  const dateField = dateFieldOf(tracker);
+  const targetField = tracker.fields.find((f) => f.role === "target_num");
+  const actualField = tracker.fields.find((f) => f.role === "actual_num");
+  const metricField = tracker.fields.find((f) => f.role === "metric_pct");
+  const autoMetric = !!(targetField && actualField && metricField);
+  const statusField = tracker.fields.find((f) => f.role === "status");
+  const categoryField = tracker.fields.find((f) => f.role === "category");
+  const riskField = tracker.fields.find((f) => f.role === "risk");
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +56,9 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(0);
   const [department, setDepartment] = useState("All");
+  const [status, setStatus] = useState("All");
+  const [category, setCategory] = useState("All");
+  const [riskLevel, setRiskLevel] = useState("All");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -54,7 +74,18 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
   useEffect(() => { load(); }, [load]);
 
   function update(name: string, value: string) {
-    setForm((f) => ({ ...f, [name]: value }));
+    setForm((f) => {
+      const next = { ...f, [name]: value };
+      // Auto-calculate the metric_pct field from target/actual, exactly like the
+      // Excel system's formula columns - never left to drift out of sync with a
+      // manually-typed percentage.
+      if (autoMetric && (name === targetField!.name || name === actualField!.name)) {
+        const t = Number(next[targetField!.name]);
+        const a = Number(next[actualField!.name]);
+        next[metricField!.name] = t > 0 && !isNaN(a) ? String(Math.round((a / t) * 1000) / 10) : "";
+      }
+      return next;
+    });
   }
 
   async function submit(e: React.FormEvent) {
@@ -73,9 +104,23 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Request failed (${res.status})`);
       }
+      // A new record only shows up in the table/KPIs above if it falls inside the
+      // currently active Year/Month/Department filter - jump the filter to match
+      // what was just entered so it's never "missing" after a successful save.
+      if (!editingId) {
+        const enteredDate = form[dateField];
+        if (typeof enteredDate === "string" && enteredDate) {
+          const d = new Date(enteredDate);
+          if (!isNaN(d.getTime())) { setYear(d.getFullYear()); setMonth(d.getMonth() + 1); }
+        }
+        setDepartment("All");
+        setStatus("All");
+        setCategory("All");
+        setRiskLevel("All");
+      }
       setForm({});
       setEditingId(null);
-      setMessage(editingId ? "Updated." : "Added — KPIs and charts refreshed below.");
+      setMessage(editingId ? "Updated." : "Added — filters jumped to this record's period so it's visible below.");
       load();
     } catch (err) {
       setMessage(String(err instanceof Error ? err.message : err));
@@ -101,7 +146,14 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
     load();
   }
 
-  const snapshot = computeSnapshot(tracker, rows);
+  const filteredRows = rows.filter((r) => {
+    if (statusField && status !== "All" && String(r[statusField.name]) !== status) return false;
+    if (categoryField && category !== "All" && String(r[categoryField.name]) !== category) return false;
+    if (riskField && riskLevel !== "All" && String(r[riskField.name]) !== riskLevel) return false;
+    return true;
+  });
+
+  const snapshot = computeSnapshot(tracker, filteredRows);
   const accentClass: Record<string, string> = { teal: "text-teal", gold: "text-gold", coral: "text-coral", purple: "text-purple" };
 
   async function doExport(kind: "pdf" | "ppt" | "excel") {
@@ -109,7 +161,7 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
     try {
       if (kind === "pdf") exportTrackerPdf();
       else if (kind === "ppt") await exportTrackerPpt(tracker, snapshot);
-      else await exportTrackerExcel(tracker, rows);
+      else await exportTrackerExcel(tracker, filteredRows);
     } finally {
       setExporting(null);
     }
@@ -156,6 +208,41 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
             {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
+        {statusField && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-grey">{statusField.label}</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="All">All</option>
+              {(statusField.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        )}
+        {categoryField && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-grey">{categoryField.label}</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="All">All</option>
+              {(categoryField.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        )}
+        {riskField && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-grey">{riskField.label}</label>
+            <select value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)}>
+              <option value="All">All</option>
+              {(riskField.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        )}
+        {(status !== "All" || category !== "All" || riskLevel !== "All") && (
+          <button
+            onClick={() => { setStatus("All"); setCategory("All"); setRiskLevel("All"); }}
+            className="text-xs px-2.5 py-1 rounded-md border border-border text-grey hover:text-white hover:bg-card-2"
+          >
+            ✕ Clear extra filters
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -171,39 +258,54 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {snapshot.charts.map((c) => (
-              <ChartCard key={c.title} title={c.title}>
-                <ResponsiveContainer width="100%" height={240}>
-                  {c.type === "trend" ? (
-                    <LineChart data={c.data}>
-                      <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
-                      <XAxis dataKey="label" tick={AXIS} />
-                      <YAxis tick={AXIS} allowDecimals={false} />
-                      <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }} />
-                      <Line type="monotone" dataKey="value" stroke={TEAL} strokeWidth={2} dot={{ r: 3 }} />
-                    </LineChart>
-                  ) : c.type === "bar" ? (
-                    <BarChart data={c.data} layout="vertical" margin={{ left: 24 }}>
-                      <CartesianGrid stroke={GRID} strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" tick={AXIS} allowDecimals={false} />
-                      <YAxis type="category" dataKey="label" tick={{ ...AXIS, fontSize: 10 }} width={110} />
-                      <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }} />
-                      <Bar dataKey="value" fill={GOLD} radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  ) : (
-                    <PieChart>
-                      <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }} />
-                      <Pie data={c.data} dataKey="value" nameKey="label" innerRadius={50} outerRadius={85} paddingAngle={2}>
-                        {c.data.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-                      </Pie>
-                    </PieChart>
-                  )}
-                </ResponsiveContainer>
-              </ChartCard>
-            ))}
+            {snapshot.charts.map((c, ci) => {
+              const gid = `trendFill-${trackerKey}-${ci}`;
+              return (
+                <ChartCard key={c.title} title={c.title}>
+                  <ResponsiveContainer width="100%" height={240}>
+                    {c.type === "trend" ? (
+                      <AreaChart data={c.data}>
+                        <defs>
+                          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={TEAL} stopOpacity={0.45} />
+                            <stop offset="100%" stopColor={TEAL} stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="label" tick={AXIS} />
+                        <YAxis tick={AXIS} allowDecimals={false} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: TEAL, strokeWidth: 1, strokeDasharray: "4 3" }} />
+                        <Area type="monotone" dataKey="value" stroke={TEAL} strokeWidth={2.5} fill={`url(#${gid})`} dot={{ r: 3, fill: TEAL, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                      </AreaChart>
+                    ) : c.type === "bar" ? (
+                      <BarChart data={c.data} layout="vertical" margin={{ left: 24 }}>
+                        <defs>
+                          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor={GOLD} stopOpacity={0.55} />
+                            <stop offset="100%" stopColor={GOLD} stopOpacity={1} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke={GRID} strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" tick={AXIS} allowDecimals={false} />
+                        <YAxis type="category" dataKey="label" tick={{ ...AXIS, fontSize: 10 }} width={110} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
+                        <Bar dataKey="value" fill={`url(#${gid})`} radius={[0, 6, 6, 0]} />
+                      </BarChart>
+                    ) : (
+                      <PieChart>
+                        <Tooltip contentStyle={TOOLTIP_STYLE} />
+                        <Pie data={c.data} dataKey="value" nameKey="label" innerRadius={50} outerRadius={85} paddingAngle={3} stroke="none">
+                          {c.data.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                        </Pie>
+                      </PieChart>
+                    )}
+                  </ResponsiveContainer>
+                </ChartCard>
+              );
+            })}
           </div>
 
-          {tracker.key === "jsa" && <RiskMatrix rows={rows} />}
+          {tracker.key === "jsa" && <RiskMatrix rows={filteredRows} />}
 
           {/* Department Performance + Monthly Performance Matrix */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -264,11 +366,11 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
                 <ChartCard title="Overdue Ageing (open items)">
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={snapshot.aging}>
-                      <CartesianGrid stroke={GRID} />
+                      <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="label" tick={AXIS} />
                       <YAxis tick={AXIS} allowDecimals={false} />
-                      <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f" }} />
-                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                         {snapshot.aging.map((d, i) => (
                           <Cell key={i} fill={d.label === "0-7" ? TEAL : d.label === "8-15" ? GOLD : d.label === "16-30" ? "#f2994a" : CORAL} />
                         ))}
@@ -295,14 +397,20 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
           {snapshot.forecast && (
             <ChartCard title="Target vs Actual + Next-Month Forecast (linear projection)" className="mb-6">
               <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={snapshot.forecast}>
-                  <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
+                <AreaChart data={snapshot.forecast}>
+                  <defs>
+                    <linearGradient id={`forecastFill-${trackerKey}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={TEAL} stopOpacity={0.4} />
+                      <stop offset="100%" stopColor={TEAL} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="label" tick={AXIS} />
                   <YAxis tick={AXIS} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#111c33", border: "1px solid #22314f", borderRadius: 8, color: "white" }} />
-                  <Line type="monotone" dataKey="target" name="Target" stroke={GOLD} strokeWidth={1.75} strokeDasharray="4 3" dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="actual" name="Actual" stroke={TEAL} strokeWidth={2.25} dot={{ r: 3 }} />
-                </LineChart>
+                  <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: TEAL, strokeWidth: 1, strokeDasharray: "4 3" }} />
+                  <Area type="monotone" dataKey="target" name="Target" stroke={GOLD} strokeWidth={1.75} strokeDasharray="4 3" fill="transparent" dot={{ r: 3, fill: GOLD, strokeWidth: 0 }} />
+                  <Area type="monotone" dataKey="actual" name="Actual" stroke={TEAL} strokeWidth={2.5} fill={`url(#forecastFill-${trackerKey})`} dot={{ r: 3, fill: TEAL, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                </AreaChart>
               </ResponsiveContainer>
             </ChartCard>
           )}
@@ -313,26 +421,33 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
               {editingId ? "Edit Record" : "Add New Record"}
             </h2>
             <form onSubmit={submit} className="card p-4 mb-6 grid grid-cols-2 md:grid-cols-3 gap-3">
-              {tracker.fields.map((f) => (
-                <div key={f.name} className="flex flex-col gap-1">
-                  <label className="text-xs text-grey">{f.label}{f.required ? " *" : ""}</label>
-                  {f.type === "select" || f.type === "department" ? (
-                    <select required={f.required} value={(form[f.name] as string) || ""} onChange={(e) => update(f.name, e.target.value)}>
-                      <option value="">—</option>
-                      {(f.type === "department" ? DEPARTMENTS : f.options || []).map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={f.type === "date" ? "date" : f.type === "number" ? "number" : "text"}
-                      required={f.required}
-                      value={(form[f.name] as string) ?? ""}
-                      onChange={(e) => update(f.name, e.target.value)}
-                    />
-                  )}
-                </div>
-              ))}
+              {tracker.fields.map((f) => {
+                const isComputed = autoMetric && f.name === metricField!.name;
+                return (
+                  <div key={f.name} className="flex flex-col gap-1">
+                    <label className="text-xs text-grey">
+                      {f.label}{f.required ? " *" : ""}{isComputed ? " (auto-calculated)" : ""}
+                    </label>
+                    {isComputed ? (
+                      <input type="text" readOnly value={form[f.name] ? `${form[f.name]}%` : "—"} className="opacity-70 cursor-not-allowed" />
+                    ) : f.type === "select" || f.type === "department" ? (
+                      <select required={f.required} value={(form[f.name] as string) || ""} onChange={(e) => update(f.name, e.target.value)}>
+                        <option value="">—</option>
+                        {(f.type === "department" ? DEPARTMENTS : f.options || []).map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={f.type === "date" ? "date" : f.type === "number" ? "number" : "text"}
+                        required={f.required}
+                        value={(form[f.name] as string) ?? ""}
+                        onChange={(e) => update(f.name, e.target.value)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
               <div className="col-span-2 md:col-span-3 flex items-center gap-3 mt-2">
                 <button type="submit" disabled={saving} className="bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md disabled:opacity-50">
                   {saving ? "Saving…" : editingId ? "Update record" : "Add record"}
@@ -349,8 +464,8 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
 
           {/* Data table */}
           <div className="card p-4">
-            <div className="text-sm font-semibold mb-3">Records ({rows.length})</div>
-            {rows.length === 0 ? (
+            <div className="text-sm font-semibold mb-3">Records ({filteredRows.length})</div>
+            {filteredRows.length === 0 ? (
               <p className="text-grey text-sm">No records yet.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -362,7 +477,7 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
+                    {filteredRows.map((row) => (
                       <tr key={String(row.id)} className="border-t border-border">
                         {tracker.fields.map((f) => (
                           <td key={f.name} className="p-2 whitespace-nowrap">
