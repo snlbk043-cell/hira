@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  FunnelChart, Funnel, LabelList,
 } from "recharts";
 import Filters from "@/components/Filters";
 import KpiCard from "@/components/KpiCard";
@@ -11,6 +13,29 @@ import ChartCard from "@/components/ChartCard";
 import Gauge from "@/components/Gauge";
 import { useSummary } from "@/lib/useSummary";
 import { MONTHS } from "@/lib/types";
+import { TRACKERS } from "@/lib/trackers";
+
+function heatColor(v: number, max: number) {
+  if (!v) return "rgba(148,163,184,0.05)";
+  const t = Math.min(1, v / Math.max(1, max));
+  const alpha = 0.12 + t * 0.68;
+  return `rgba(240,98,90,${alpha.toFixed(2)})`;
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+const RISK_RING_COLORS: Record<string, string> = { Critical: "#f0625a", High: "#ea580c", Medium: "#f5a524", Low: "#14b8a6" };
+
+type HealthEntry = { label: string; icon: string; score: number; detail: string };
+const SCORE_PILL = ["bg-coral/15 text-coral border border-coral/30", "bg-gold/15 text-gold border border-gold/30", "bg-teal/15 text-teal border border-teal/30"];
+const SCORE_LABEL = ["🔴 Red", "🟡 Amber", "🟢 Green"];
+const SCORE_HEX = ["#f0625a", "#f5a524", "#14b8a6"];
 
 const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6", BLUE = "#0b6ea8";
 const AXIS = { stroke: "#94a3b8", fontSize: 11 };
@@ -35,6 +60,13 @@ export default function ExecutiveDashboard() {
   const [department, setDepartment] = useState("All");
   const [month, setMonth] = useState(0);
   const { data, loading, error } = useSummary(year, department, month);
+
+  const [health, setHealth] = useState<HealthEntry[] | null>(null);
+  useEffect(() => {
+    fetch(`/api/health-summary?department=${encodeURIComponent(department)}`)
+      .then((r) => r.json())
+      .then((json) => setHealth(json.results));
+  }, [department]);
 
   if (loading) return <div className="max-w-7xl mx-auto p-6 text-grey">Loading…</div>;
   if (error || !data) return <div className="max-w-7xl mx-auto p-6 text-coral">Failed to load: {error}</div>;
@@ -61,9 +93,42 @@ export default function ExecutiveDashboard() {
     { metric: "Obs Closure", actual: data.obs.pct, target: data.settings.obs_closure_target_pct ?? 90 },
     { metric: "CA Closure", actual: data.ca.pct, target: data.settings.ca_closure_target_pct ?? 90 },
     { metric: "PTW Compliance", actual: data.ptw.pct, target: data.settings.ptw_compliance_target_pct ?? 95 },
-    { metric: "JSA Approved", actual: data.jsa.pct, target: 90 },
-    { metric: "Walkthroughs Done", actual: data.walk.pct, target: 85 },
+    { metric: "JSA Approved", actual: data.jsa.pct, target: data.settings.jsa_approval_target_pct ?? 90 },
+    { metric: "Walkthroughs Done", actual: data.walk.pct, target: data.settings.walkthrough_target_pct ?? 85 },
   ];
+
+  const funnelData = [...pyramid].sort((a, b) => b.count - a.count).map((p) => ({
+    name: p.name,
+    count: p.count,
+    fill: pyramidColors[pyramidOrder.indexOf(p.name)],
+  }));
+
+  const riskLevelsForSunburst = Object.keys(data.riskRatingByDept);
+  const sunburstOuter = riskLevelsForSunburst.map((lvl) => ({
+    name: lvl,
+    value: Object.values(data.riskRatingByDept[lvl]).reduce((a, b) => a + b, 0),
+    fill: RISK_RING_COLORS[lvl] || PURPLE,
+  }));
+  const sunburstInner = riskLevelsForSunburst.flatMap((lvl) => {
+    const base = RISK_RING_COLORS[lvl] || PURPLE;
+    return Object.entries(data.riskRatingByDept[lvl]).map(([dept, count], i) => ({
+      name: `${lvl} · ${dept}`,
+      value: count,
+      fill: hexToRgba(base, 0.45 + (i % 4) * 0.18),
+    }));
+  });
+
+  const deptHeatRows = Object.entries(data.deptMonthHeat).sort((a, b) => b[1].reduce((x, y) => x + y, 0) - a[1].reduce((x, y) => x + y, 0));
+  const deptHeatMax = Math.max(1, ...deptHeatRows.flatMap(([, v]) => v));
+
+  const riskLevelsSeen = Array.from(new Set(Object.values(data.areaRiskHeat).flatMap((r) => Object.keys(r))));
+  const riskOrder = ["Critical", "High", "Medium", "Low", "Unrated"];
+  const riskCols = riskOrder.filter((r) => riskLevelsSeen.includes(r));
+  const areaHeatRows = Object.entries(data.areaRiskHeat)
+    .map(([area, byRisk]) => ({ area, byRisk, total: Object.values(byRisk).reduce((a, b) => a + b, 0) }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 12);
+  const areaHeatMax = Math.max(1, ...areaHeatRows.flatMap((r) => Object.values(r.byRisk)));
 
   const settings = data.settings;
   function rag(actual: number, target: number, higherIsBetter = true) {
@@ -99,17 +164,16 @@ export default function ExecutiveDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        <ChartCard title="Incident Severity Pyramid (Heinrich)">
+        <ChartCard title="Incident Severity Funnel (Heinrich pyramid)">
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={pyramid} layout="vertical" margin={{ left: 30 }}>
-              <CartesianGrid stroke={GRID} horizontal={false} />
-              <XAxis type="number" tick={AXIS} />
-              <YAxis type="category" dataKey="name" tick={AXIS} width={130} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={TOOLTIP_CURSOR} />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                {pyramid.map((_, i) => <Cell key={i} fill={pyramidColors[i]} />)}
-              </Bar>
-            </BarChart>
+            <FunnelChart>
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Funnel dataKey="count" data={funnelData} isAnimationActive lastShapeType="rectangle">
+                <LabelList position="right" dataKey="name" stroke="none" fill="#e5e7eb" fontSize={11} />
+                <LabelList position="center" dataKey="count" stroke="none" fill="#0b1220" fontSize={12} fontWeight={700} />
+                {funnelData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+              </Funnel>
+            </FunnelChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Incident Classification Mix">
@@ -124,6 +188,29 @@ export default function ExecutiveDashboard() {
           </ResponsiveContainer>
         </ChartCard>
       </div>
+
+      <ChartCard title="Risk Hierarchy — Risk Level → Department (multi-ring)" className="mb-4">
+        <ResponsiveContainer width="100%" height={320}>
+          <PieChart>
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <Pie data={sunburstOuter} dataKey="value" nameKey="name" innerRadius={90} outerRadius={115} paddingAngle={2} isAnimationActive>
+              {sunburstOuter.map((d, i) => <Cell key={i} fill={d.fill} />)}
+            </Pie>
+            <Pie data={sunburstInner} dataKey="value" nameKey="name" innerRadius={50} outerRadius={86} paddingAngle={1} isAnimationActive>
+              {sunburstInner.map((d, i) => <Cell key={i} fill={d.fill} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="flex flex-wrap justify-center gap-3 mt-1">
+          {sunburstOuter.map((d) => (
+            <span key={d.name} className="flex items-center gap-1.5 text-xs text-grey">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: d.fill }} />
+              {d.name}
+            </span>
+          ))}
+        </div>
+        <p className="text-xs text-grey mt-1 text-center">Outer ring: risk level totals · Inner ring: department breakdown within each risk level</p>
+      </ChartCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <ChartCard title="TRIR & LTIFR Trend">
@@ -229,6 +316,69 @@ export default function ExecutiveDashboard() {
         </ChartCard>
       </div>
 
+      <ChartCard title="Incident Heatmap — Department × Month" className="mb-4">
+        {deptHeatRows.length === 0 ? (
+          <p className="text-grey text-sm p-2">No incident data yet.</p>
+        ) : (
+          <div className="overflow-x-auto mt-1">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left p-1.5 text-grey sticky left-0 bg-card">Department</th>
+                  {MONTHS.map((m) => <th key={m} className="p-1.5 text-grey font-normal">{m}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {deptHeatRows.map(([dept, counts]) => (
+                  <tr key={dept}>
+                    <td className="p-1.5 font-semibold whitespace-nowrap sticky left-0 bg-card">{dept}</td>
+                    {counts.map((v, i) => (
+                      <td key={i} className="p-1.5 text-center font-bold" style={{ background: heatColor(v, deptHeatMax), color: v ? "white" : "#475569" }}>
+                        {v || "·"}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
+
+      <ChartCard title="Incident Heatmap — Location (Area) × Risk Level" className="mb-4">
+        {areaHeatRows.length === 0 ? (
+          <p className="text-grey text-sm p-2">No incident data yet.</p>
+        ) : (
+          <div className="overflow-x-auto mt-1">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left p-1.5 text-grey sticky left-0 bg-card">Area / Location</th>
+                  {riskCols.map((r) => <th key={r} className="p-1.5 text-grey font-normal">{r}</th>)}
+                  <th className="p-1.5 text-grey font-normal">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {areaHeatRows.map((row) => (
+                  <tr key={row.area}>
+                    <td className="p-1.5 font-semibold whitespace-nowrap sticky left-0 bg-card">{row.area}</td>
+                    {riskCols.map((r) => {
+                      const v = row.byRisk[r] || 0;
+                      return (
+                        <td key={r} className="p-1.5 text-center font-bold" style={{ background: heatColor(v, areaHeatMax), color: v ? "white" : "#475569" }}>
+                          {v || "·"}
+                        </td>
+                      );
+                    })}
+                    <td className="p-1.5 text-center text-grey">{row.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
+
       <ChartCard title="Compliance Gauges — cross-tracker leading vs lagging" className="mb-4">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
           <Gauge value={data.training.pct} label="Training Compliance" color={TEAL} />
@@ -247,17 +397,75 @@ export default function ExecutiveDashboard() {
                 <th className="text-left p-2 text-grey">Metric</th>
                 <th className="text-right p-2 text-grey">Actual</th>
                 <th className="text-right p-2 text-grey">Target</th>
+                <th className="text-left p-2 text-grey w-32">Progress</th>
                 <th className="text-center p-2 text-grey">Status</th>
               </tr>
             </thead>
             <tbody>
-              {ragScorecard.map((r) => (
-                <tr key={r.metric} className="border-t border-border">
-                  <td className="p-2">{r.metric}</td>
-                  <td className="p-2 text-right font-semibold">{r.actual}</td>
-                  <td className="p-2 text-right text-grey">{r.target}</td>
+              {ragScorecard.map((r) => {
+                const ratio = r.target ? Math.min(100, Math.round((r.actual / r.target) * 100)) : 0;
+                const barColor = r.status === "🟢 Green" ? "#14b8a6" : r.status === "🟡 Amber" ? "#f5a524" : "#f0625a";
+                return (
+                  <tr key={r.metric} className="border-t border-border">
+                    <td className="p-2">{r.metric}</td>
+                    <td className="p-2 text-right font-semibold">{r.actual}</td>
+                    <td className="p-2 text-right text-grey">{r.target}</td>
+                    <td className="p-2">
+                      <div className="h-2 rounded-full bg-card-2 overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${ratio}%`, background: barColor, boxShadow: `0 0 6px ${barColor}90` }} />
+                      </div>
+                    </td>
+                    <td className="p-2 text-center">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${RAG_PILL[r.status]}`}>{r.status}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </ChartCard>
+
+      <ChartCard title="All 25 Trackers — At a Glance" className="mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-1">
+          {(health ?? TRACKERS.map((t) => ({ label: t.label, icon: t.icon, score: 1, detail: "Loading…" }))).map((h, i) => (
+            <Link
+              key={h.label}
+              href={`/tracker/${TRACKERS[i]?.key ?? ""}`}
+              className="card p-3 flex items-center gap-2.5 hover:border-teal/40 transition-colors"
+              style={{ borderLeft: `3px solid ${SCORE_HEX[h.score]}` }}
+            >
+              <span className="text-lg shrink-0">{h.icon}</span>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-white truncate">{h.label}</div>
+                <div className="text-[11px] text-grey truncate">{h.detail}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </ChartCard>
+
+      <ChartCard title="RAG Status — All 25 Trackers" className="mb-4">
+        <div className="overflow-x-auto mt-1">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-left p-2 text-grey">Tracker</th>
+                <th className="text-left p-2 text-grey">Signal</th>
+                <th className="text-center p-2 text-grey">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(health ?? []).map((h, i) => (
+                <tr key={h.label} className="border-t border-border">
+                  <td className="p-2">
+                    <Link href={`/tracker/${TRACKERS[i]?.key ?? ""}`} className="hover:text-teal transition-colors">
+                      {h.icon} {h.label}
+                    </Link>
+                  </td>
+                  <td className="p-2 text-grey">{h.detail}</td>
                   <td className="p-2 text-center">
-                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${RAG_PILL[r.status]}`}>{r.status}</span>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${SCORE_PILL[h.score]}`}>{SCORE_LABEL[h.score]}</span>
                   </td>
                 </tr>
               ))}

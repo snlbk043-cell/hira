@@ -2,6 +2,11 @@
 import { useEffect, useState } from "react";
 import { MONTH_NAMES } from "@/lib/constants";
 
+const BRANDING_LABELS: Record<string, string> = {
+  site_name: "Sidebar Title",
+  company_name: "Sidebar Subtitle (plant / org name)",
+};
+
 const SETTINGS_LABELS: Record<string, string> = {
   trir_target: "TRIR Target (max acceptable)",
   ltifr_target: "LTIFR Target (max acceptable)",
@@ -9,6 +14,8 @@ const SETTINGS_LABELS: Record<string, string> = {
   obs_closure_target_pct: "Obs Closure Target %",
   ca_closure_target_pct: "CA Closure Target %",
   ptw_compliance_target_pct: "PTW Compliance Target %",
+  jsa_approval_target_pct: "JSA Approved Target %",
+  walkthrough_target_pct: "Walkthroughs Done Target %",
   amber_band: "RAG Amber Band (fraction of target)",
   trir_multiplier: "TRIR Multiplier (OSHA standard)",
   ltifr_multiplier: "LTIFR Multiplier (per million man-hours)",
@@ -88,6 +95,20 @@ export default function SettingsPage() {
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-1">⚙️ Settings</h1>
       <p className="text-grey text-sm mb-4">Targets, multipliers and monthly man-hours used across both dashboards.</p>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1">Branding</div>
+        <p className="text-xs text-grey mb-3">Customize the name shown at the top of the sidebar on every page.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(BRANDING_LABELS).map(([key, label]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{label}</label>
+              <input type="text" value={settings[key] ?? ""} onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <button onClick={saveSettings} className="mt-4 bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md">Save Settings</button>
+      </div>
 
       <div className="card p-4 mb-6">
         <div className="text-sm font-semibold mb-3">Targets & Benchmarks</div>

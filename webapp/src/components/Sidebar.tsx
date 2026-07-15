@@ -1,8 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { TRACKERS } from "@/lib/trackers";
+
+const DEFAULT_SITE_NAME = "RCPL SAFETY";
+const DEFAULT_COMPANY_NAME = "Campa Cola CSD Plant · EHS System";
+
+function useBranding() {
+  const [siteName, setSiteName] = useState(DEFAULT_SITE_NAME);
+  const [companyName, setCompanyName] = useState(DEFAULT_COMPANY_NAME);
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((s: Record<string, string>) => {
+        if (s.site_name) setSiteName(s.site_name);
+        if (s.company_name) setCompanyName(s.company_name);
+      })
+      .catch(() => {});
+  }, []);
+  return { siteName, companyName };
+}
 
 const overview = [
   { href: "/", label: "Home", icon: "🏠" },
@@ -28,7 +46,7 @@ function NavLink({ href, icon, label, active, onClick }: { href: string; icon: s
   );
 }
 
-function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function SidebarContent({ pathname, onNavigate, siteName, companyName }: { pathname: string; onNavigate?: () => void; siteName: string; companyName: string }) {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-4 py-4 border-b border-border flex items-center gap-2.5">
@@ -38,9 +56,9 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
         >
           🧭
         </div>
-        <div>
-          <div className="font-bold text-white text-sm tracking-wide">RCPL SAFETY</div>
-          <div className="text-[11px] text-grey mt-0.5">Campa Cola CSD Plant · EHS System</div>
+        <div className="min-w-0">
+          <div className="font-bold text-white text-sm tracking-wide truncate">{siteName}</div>
+          <div className="text-[11px] text-grey mt-0.5 truncate">{companyName}</div>
         </div>
       </div>
 
@@ -73,12 +91,13 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
 export default function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const { siteName, companyName } = useBranding();
 
   return (
     <>
       {/* mobile top bar */}
       <div className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b border-border bg-[#0b1220]/95 backdrop-blur">
-        <span className="font-bold text-teal text-sm">🧭 RCPL SAFETY</span>
+        <span className="font-bold text-teal text-sm">🧭 {siteName}</span>
         <button
           onClick={() => setOpen(true)}
           aria-label="Open navigation"
@@ -95,7 +114,7 @@ export default function Sidebar() {
             <div className="flex justify-end px-3 pt-3">
               <button onClick={() => setOpen(false)} aria-label="Close navigation" className="text-white text-xl px-2">✕</button>
             </div>
-            <SidebarContent pathname={pathname} onNavigate={() => setOpen(false)} />
+            <SidebarContent pathname={pathname} onNavigate={() => setOpen(false)} siteName={siteName} companyName={companyName} />
           </div>
           <div className="flex-1 bg-black/50" onClick={() => setOpen(false)} />
         </div>
@@ -103,7 +122,7 @@ export default function Sidebar() {
 
       {/* desktop sidebar */}
       <aside className="hidden md:block w-64 shrink-0 border-r border-border bg-[#0b1220] sticky top-0 h-screen">
-        <SidebarContent pathname={pathname} />
+        <SidebarContent pathname={pathname} siteName={siteName} companyName={companyName} />
       </aside>
     </>
   );

@@ -15,6 +15,8 @@ export type Summary = {
   bodyPartCounts: Record<string, number>;
   deptScore: Record<string, number>;
   riskRatingByDept: Record<string, Record<string, number>>;
+  deptMonthHeat: Record<string, number[]>;
+  areaRiskHeat: Record<string, Record<string, number>>;
   training: { pct: number; total: number; statusCounts: Record<string, number> };
   obs: { pct: number; total: number; statusCounts: Record<string, number> };
   ca: { pct: number; total: number; statusCounts: Record<string, number> };

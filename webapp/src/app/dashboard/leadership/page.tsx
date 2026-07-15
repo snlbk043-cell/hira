@@ -243,26 +243,42 @@ export default function LeadershipDashboard() {
                 <th className="text-left p-2 text-grey">Metric</th>
                 <th className="text-right p-2 text-grey">Current YTD</th>
                 <th className="text-right p-2 text-grey">Prior Year</th>
+                <th className="text-left p-2 text-grey w-36">Change</th>
                 <th className="text-right p-2 text-grey">Δ vs Prior Year</th>
               </tr>
             </thead>
             <tbody>
-              {yoy.map((r) => (
-                <tr key={r.label} className="border-t border-border">
-                  <td className="p-2">{r.label}</td>
-                  <td className="p-2 text-right font-semibold">{r.cur}</td>
-                  <td className="p-2 text-right text-grey">{r.py}</td>
-                  <td className="p-2 text-right">
-                    {r.py === 0 ? (
-                      <span className="text-grey text-xs">(enter prior year data)</span>
-                    ) : (
-                      <span className={r.cur - r.py <= 0 ? "text-teal" : "text-coral"}>
-                        {(((r.cur - r.py) / r.py) * 100).toFixed(1)}%
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {yoy.map((r) => {
+                const deltaPct = r.py === 0 ? 0 : ((r.cur - r.py) / r.py) * 100;
+                const good = deltaPct <= 0;
+                const magnitude = Math.min(100, Math.abs(deltaPct));
+                return (
+                  <tr key={r.label} className="border-t border-border">
+                    <td className="p-2">{r.label}</td>
+                    <td className="p-2 text-right font-semibold">{r.cur}</td>
+                    <td className="p-2 text-right text-grey">{r.py}</td>
+                    <td className="p-2">
+                      {r.py === 0 ? (
+                        <span className="text-grey text-xs">—</span>
+                      ) : (
+                        <div className="h-1.5 w-full rounded-full bg-card-2 overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${magnitude}%`, background: good ? TEAL : CORAL }}
+                          />
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-2 text-right">
+                      {r.py === 0 ? (
+                        <span className="text-grey text-xs">(enter prior year data)</span>
+                      ) : (
+                        <span className={good ? "text-teal" : "text-coral"}>{deltaPct.toFixed(1)}%</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

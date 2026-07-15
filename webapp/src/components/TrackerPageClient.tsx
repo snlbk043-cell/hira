@@ -26,6 +26,23 @@ const TOOLTIP_STYLE = {
 };
 const TOOLTIP_CURSOR = { fill: "rgba(148,163,184,0.06)" };
 
+function pctBarColor(pct: number) {
+  return pct >= 85 ? TEAL : pct >= 60 ? GOLD : CORAL;
+}
+
+function PctBar({ pct }: { pct: number }) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  const color = pctBarColor(clamped);
+  return (
+    <div className="flex items-center gap-2 justify-end">
+      <div className="h-1.5 w-14 rounded-full bg-card-2 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${clamped}%`, background: color }} />
+      </div>
+      <span className="tabular-nums w-9 text-right">{pct}%</span>
+    </div>
+  );
+}
+
 function monthRange(year: number, month: number) {
   if (!month) return { from: `${year}-01-01`, to: `${year}-12-31` };
   const last = new Date(year, month, 0).getDate();
@@ -326,8 +343,8 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
                         <tr key={d.department} className="border-t border-border">
                           <td className="p-2">{d.department}</td>
                           <td className="p-2 text-right font-semibold">{d.count}</td>
-                          {snapshot.hasStatus && <td className="p-2 text-right">{d.closedPct ?? "—"}%</td>}
-                          {snapshot.hasMetric && <td className="p-2 text-right">{d.avgMetric ?? "—"}%</td>}
+                          {snapshot.hasStatus && <td className="p-2">{d.closedPct === null ? <span className="text-grey text-right block">—</span> : <PctBar pct={d.closedPct} />}</td>}
+                          {snapshot.hasMetric && <td className="p-2">{d.avgMetric === null ? <span className="text-grey text-right block">—</span> : <PctBar pct={d.avgMetric} />}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -350,7 +367,7 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
                       <tr key={m.month} className="border-t border-border">
                         <td className="p-2">{m.month}</td>
                         <td className="p-2 text-right font-semibold">{m.count}</td>
-                        {snapshot.hasMetric && <td className="p-2 text-right">{m.avgMetric ?? "—"}%</td>}
+                        {snapshot.hasMetric && <td className="p-2">{m.avgMetric === null ? <span className="text-grey text-right block">—</span> : <PctBar pct={m.avgMetric} />}</td>}
                       </tr>
                     ))}
                   </tbody>

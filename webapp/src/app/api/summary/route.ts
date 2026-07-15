@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   // ---- incidents ----
   const incF = buildFilter("incident_date", year, month, department, deptFilter);
   const incidentRows = (await database.sql.unsafe(
-    `SELECT classification, department, body_part, risk_rating, lost_days, root_cause,
+    `SELECT classification, department, area, body_part, risk_rating, lost_days, root_cause,
             EXTRACT(MONTH FROM incident_date)::int AS month
      FROM incidents WHERE ${incF.where}`,
     incF.params
@@ -55,6 +55,8 @@ export async function GET(req: NextRequest) {
   const deptRecordable: Record<string, number> = {};
   const deptNearMiss: Record<string, number> = {};
   const riskRatingByDept: Record<string, Record<string, number>> = {};
+  const deptMonthHeat: Record<string, number[]> = {};
+  const areaRiskHeat: Record<string, Record<string, number>> = {};
   let lostDaysTotal = 0;
 
   for (const r of incidentRows) {
@@ -75,6 +77,14 @@ export async function GET(req: NextRequest) {
       const lvl = String(r.risk_rating);
       riskRatingByDept[lvl] = riskRatingByDept[lvl] || {};
       riskRatingByDept[lvl][dept] = (riskRatingByDept[lvl][dept] || 0) + 1;
+    }
+    deptMonthHeat[dept] = deptMonthHeat[dept] || new Array(12).fill(0);
+    deptMonthHeat[dept][m]++;
+    if (r.area) {
+      const area = String(r.area);
+      const lvl = r.risk_rating ? String(r.risk_rating) : "Unrated";
+      areaRiskHeat[area] = areaRiskHeat[area] || {};
+      areaRiskHeat[area][lvl] = (areaRiskHeat[area][lvl] || 0) + 1;
     }
   }
 
@@ -282,6 +292,8 @@ export async function GET(req: NextRequest) {
     bodyPartCounts,
     deptScore,
     riskRatingByDept,
+    deptMonthHeat,
+    areaRiskHeat,
     training: { pct: round1(training.pct), total: training.total, statusCounts: training.statusCounts },
     obs: { pct: round1(obs.pct), total: obs.total, statusCounts: obs.statusCounts },
     ca: { pct: round1(ca.pct), total: ca.total, statusCounts: ca.statusCounts },
