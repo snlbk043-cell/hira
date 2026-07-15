@@ -69,6 +69,7 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(0);
@@ -161,6 +162,17 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
     if (!confirm("Delete this record?")) return;
     await fetch(`${endpoint}/${id}`, { method: "DELETE" });
     load();
+  }
+
+  async function clearAll() {
+    if (!confirm(`Permanently delete all ${rows.length} record(s) in ${tracker.label}? This cannot be undone.`)) return;
+    setClearing(true);
+    try {
+      await fetch(endpoint, { method: "DELETE" });
+      load();
+    } finally {
+      setClearing(false);
+    }
   }
 
   const filteredRows = rows.filter((r) => {
@@ -481,7 +493,18 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
 
           {/* Data table */}
           <div className="card p-4">
-            <div className="text-sm font-semibold mb-3">Records ({filteredRows.length})</div>
+            <div className="flex items-center justify-between mb-3 no-print">
+              <div className="text-sm font-semibold">Records ({filteredRows.length})</div>
+              {rows.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  disabled={clearing}
+                  className="text-xs px-3 py-1.5 rounded-md border border-coral/40 text-coral hover:bg-coral/10 disabled:opacity-50"
+                >
+                  {clearing ? "Clearing…" : `🗑️ Clear all ${tracker.label} data`}
+                </button>
+              )}
+            </div>
             {filteredRows.length === 0 ? (
               <p className="text-grey text-sm">No records yet.</p>
             ) : (

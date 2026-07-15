@@ -55,7 +55,12 @@ export function createTableApi(table: string, dateColumn: string, columns: Colum
     return Response.json(rows[0], { status: 201 });
   }
 
-  return { GET, POST };
+  async function DELETE() {
+    await db().sql.unsafe(`DELETE FROM "${table}"`);
+    return new Response(null, { status: 204 });
+  }
+
+  return { GET, POST, DELETE };
 }
 
 export function createItemApi(table: string, columns: ColumnSpec[]) {
