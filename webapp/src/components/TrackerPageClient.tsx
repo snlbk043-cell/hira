@@ -4,12 +4,14 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { trackerByKey, dateFieldOf } from "@/lib/trackers";
+import { trackerByKey, dateFieldOf, TrackerDef } from "@/lib/trackers";
 import { computeSnapshot, Row } from "@/lib/aggregate";
 import { DEPARTMENTS, MONTH_NAMES } from "@/lib/constants";
 import KpiCard from "@/components/KpiCard";
 import ChartCard from "@/components/ChartCard";
 import RiskMatrix from "@/components/RiskMatrix";
+import EvidencePanel from "@/components/EvidencePanel";
+import PhotoGallery from "@/components/PhotoGallery";
 import { exportTrackerPdf, exportTrackerPpt, exportTrackerExcel } from "@/lib/exportUtils";
 
 const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6";
@@ -50,9 +52,22 @@ function monthRange(year: number, month: number) {
   return { from: `${year}-${mm}-01`, to: `${year}-${mm}-${String(last).padStart(2, "0")}` };
 }
 
-export default function TrackerPageClient({ trackerKey }: { trackerKey: string }) {
-  const tracker = trackerByKey(trackerKey)!;
-  const endpoint = `/api/tracker/${trackerKey}`;
+export default function TrackerPageClient({
+  trackerKey,
+  customTracker,
+  endpointOverride,
+}: {
+  trackerKey: string;
+  /** When set, renders this tracker definition instead of looking `trackerKey`
+   * up in the static TRACKERS config - lets user-created custom trackers reuse
+   * every bit of this generic KPI/chart/form/table machinery. */
+  customTracker?: TrackerDef;
+  endpointOverride?: string;
+}) {
+  const tracker = customTracker ?? trackerByKey(trackerKey)!;
+  const endpoint = endpointOverride ?? `/api/tracker/${trackerKey}`;
+  const evidenceKey = tracker.key;
+  const [evidenceFor, setEvidenceFor] = useState<number | null>(null);
   const dateField = dateFieldOf(tracker);
   const targetField = tracker.fields.find((f) => f.role === "target_num");
   const actualField = tracker.fields.find((f) => f.role === "actual_num");
@@ -284,6 +299,8 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
               <KpiCard key={k.label} icon={k.icon} label={k.label} value={k.value} accent={k.accent} />
             ))}
           </div>
+
+          <PhotoGallery trackerKey={evidenceKey} />
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -525,6 +542,7 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
                           </td>
                         ))}
                         <td className="p-2 whitespace-nowrap no-print">
+                          <button onClick={() => setEvidenceFor(Number(row.id))} className="mr-3 text-purple">📎 Evidence</button>
                           <button onClick={() => startEdit(row)} className={`mr-3 ${accentClass.teal}`}>Edit</button>
                           <button onClick={() => remove(Number(row.id))} className={accentClass.coral}>Delete</button>
                         </td>
@@ -535,6 +553,10 @@ export default function TrackerPageClient({ trackerKey }: { trackerKey: string }
               </div>
             )}
           </div>
+
+          {evidenceFor !== null && (
+            <EvidencePanel trackerKey={evidenceKey} recordId={evidenceFor} onClose={() => setEvidenceFor(null)} />
+          )}
         </>
       )}
     </div>

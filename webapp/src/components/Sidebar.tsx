@@ -53,7 +53,21 @@ function NavLink({ href, icon, label, active, onClick, nature }: { href: string;
   );
 }
 
+type CustomTrackerSummary = { key: string; label: string; icon: string };
+
+function useCustomTrackers() {
+  const [customTrackers, setCustomTrackers] = useState<CustomTrackerSummary[]>([]);
+  useEffect(() => {
+    fetch("/api/custom-trackers")
+      .then((r) => r.json())
+      .then((rows: CustomTrackerSummary[]) => setCustomTrackers(rows))
+      .catch(() => {});
+  }, []);
+  return customTrackers;
+}
+
 function SidebarContent({ pathname, onNavigate, siteName, companyName }: { pathname: string; onNavigate?: () => void; siteName: string; companyName: string }) {
+  const customTrackers = useCustomTrackers();
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-4 py-4 border-b border-border flex items-center gap-2.5">
@@ -91,6 +105,19 @@ function SidebarContent({ pathname, onNavigate, siteName, companyName }: { pathn
             const href = `/tracker/${t.key}`;
             return <NavLink key={t.key} href={href} icon={t.icon} label={t.label} active={pathname === href} onClick={onNavigate} nature={natureOf(t)} />;
           })}
+        </div>
+      </div>
+
+      <div className="px-2 py-3 border-t border-border">
+        <div className="flex items-center justify-between px-3 mb-1.5">
+          <div className="text-[10px] font-semibold text-grey uppercase tracking-wider">Custom Trackers</div>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          {customTrackers.map((t) => {
+            const href = `/tracker/custom/${t.key}`;
+            return <NavLink key={t.key} href={href} icon={t.icon} label={t.label} active={pathname === href} onClick={onNavigate} />;
+          })}
+          <NavLink href="/tracker/new" icon="➕" label="Create New Tracker" active={pathname === "/tracker/new"} onClick={onNavigate} />
         </div>
       </div>
 
