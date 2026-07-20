@@ -1,0 +1,259 @@
+"use client";
+import { useEffect, useState } from "react";
+import { MONTH_NAMES } from "@/lib/constants";
+
+const BRANDING_LABELS: Record<string, string> = {
+  site_name: "Sidebar Title",
+  company_name: "Sidebar Subtitle (plant / org name)",
+};
+
+const SETTINGS_LABELS: Record<string, string> = {
+  trir_target: "TRIR Target (max acceptable)",
+  ltifr_target: "LTIFR Target (max acceptable)",
+  training_target_pct: "Training Compliance Target %",
+  obs_closure_target_pct: "Obs Closure Target %",
+  ca_closure_target_pct: "CA Closure Target %",
+  ptw_compliance_target_pct: "PTW Compliance Target %",
+  jsa_approval_target_pct: "JSA Approved Target %",
+  walkthrough_target_pct: "Walkthroughs Done Target %",
+  amber_band: "RAG Amber Band (fraction of target)",
+  trir_multiplier: "TRIR Multiplier (OSHA standard)",
+  ltifr_multiplier: "LTIFR Multiplier (per million man-hours)",
+  industry_benchmark_trir: "Industry Benchmark TRIR",
+  industry_benchmark_ltifr: "Industry Benchmark LTIFR",
+};
+
+const COST_LABELS: Record<string, string> = {
+  cost_per_lost_day: "Lost-Day Cost per Day (₹)",
+  cost_per_downtime_min: "Downtime Cost per Minute (₹)",
+};
+
+const PRIOR_YEAR_LABELS: Record<string, string> = {
+  py_trir: "Prior Year TRIR",
+  py_ltifr: "Prior Year LTIFR",
+  py_total_incidents: "Prior Year Total Incidents",
+  py_training_pct: "Prior Year Training Compliance %",
+  py_obs_pct: "Prior Year Obs Closure %",
+  py_ca_pct: "Prior Year CA Closure %",
+};
+
+export default function SettingsPage() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [manhours, setManhours] = useState<number[]>(new Array(12).fill(0));
+  const [message, setMessage] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [clearResult, setClearResult] = useState<string | null>(null);
+  const [hasLogo, setHasLogo] = useState(true);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoVersion, setLogoVersion] = useState(0);
+
+  async function uploadLogo(file: File) {
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/logo", { method: "POST", body: fd });
+      if (res.ok) { setHasLogo(true); setLogoVersion((v) => v + 1); }
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function removeLogo() {
+    if (!confirm("Remove the company logo and revert to the default icon?")) return;
+    await fetch("/api/logo", { method: "DELETE" });
+    setHasLogo(false);
+    setLogoVersion((v) => v + 1);
+  }
+
+  async function clearAllData() {
+    if (!confirm("This permanently deletes every record in all trackers. This cannot be undone. Continue?")) return;
+    setClearing(true);
+    setClearResult(null);
+    try {
+      const res = await fetch("/api/admin/clear-data", { method: "POST" });
+      const json = await res.json();
+      setClearResult(`Cleared ${Object.keys(json.results).length} tables.`);
+    } catch (e) {
+      setClearResult(String(e));
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  useEffect(() => {
+    fetch("/api/settings").then((r) => r.json()).then(setSettings);
+  }, []);
+
+  useEffect(() => {
+    fetch(`/api/manhours?year=${year}`)
+      .then((r) => r.json())
+      .then((rows: { month: number; hours: number }[]) => {
+        const arr = new Array(12).fill(0);
+        for (const r of rows) arr[r.month - 1] = Number(r.hours);
+        setManhours(arr);
+      });
+  }, [year]);
+
+  async function saveSettings() {
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+    setMessage("Settings saved.");
+  }
+
+  async function saveManhours(monthIdx: number) {
+    await fetch("/api/manhours", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ year, month: monthIdx + 1, hours: manhours[monthIdx] }),
+    });
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-1">⚙️ Settings</h1>
+      <p className="text-grey text-sm mb-4">Targets, branding, multipliers and monthly man-hours used across the whole system.</p>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">🖼️ Company Logo</div>
+        <p className="text-xs text-grey mb-3">Upload your company logo to replace the default icon at the top of the sidebar on every page.</p>
+        <div className="flex items-center gap-4">
+          {hasLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={logoVersion}
+              src={`/api/logo?v=${logoVersion}`}
+              alt="Current logo"
+              className="w-16 h-16 rounded-lg object-contain bg-white/5 border border-border"
+              onError={() => setHasLogo(false)}
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-lg flex items-center justify-center text-2xl bg-card-2 border border-border">🧭</div>
+          )}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs px-3 py-1.5 rounded-md border border-teal/40 text-teal hover:bg-teal/10 cursor-pointer inline-block w-fit">
+              {logoUploading ? "Uploading…" : "📤 Upload New Logo"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={logoUploading}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); }}
+              />
+            </label>
+            {hasLogo && (
+              <button onClick={removeLogo} className="text-xs px-3 py-1.5 rounded-md border border-coral/40 text-coral hover:bg-coral/10 w-fit">
+                Remove Logo
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">🏷️ Branding</div>
+        <p className="text-xs text-grey mb-3">Customize the name shown at the top of the sidebar on every page.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(BRANDING_LABELS).map(([key, label]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{label}</label>
+              <input type="text" value={settings[key] ?? ""} onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <button onClick={saveSettings} className="mt-4 bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md">Save Settings</button>
+      </div>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-3 flex items-center gap-1.5">🎯 Targets & Benchmarks</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(SETTINGS_LABELS).map(([key, label]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{label}</label>
+              <input
+                type="number"
+                step="any"
+                value={settings[key] ?? ""}
+                onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+        <button onClick={saveSettings} className="mt-4 bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md">
+          Save Settings
+        </button>
+        {message && <span className="ml-3 text-sm text-grey">{message}</span>}
+      </div>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">💰 Cost Parameters</div>
+        <p className="text-xs text-grey mb-3">Used only by the optional cost-impact tiles on the Executive Dashboard.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(COST_LABELS).map(([key, label]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{label}</label>
+              <input type="number" step="any" value={settings[key] ?? ""} onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <button onClick={saveSettings} className="mt-4 bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md">Save Settings</button>
+      </div>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">📅 Prior Year Actuals</div>
+        <p className="text-xs text-grey mb-3">
+          Type in last year&apos;s year-end figures for a genuine YoY comparison on Leadership Review — left at 0 (and
+          hidden from the comparison) until you enter real numbers.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Object.entries(PRIOR_YEAR_LABELS).map(([key, label]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{label}</label>
+              <input type="number" step="any" value={settings[key] ?? ""} onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <button onClick={saveSettings} className="mt-4 bg-teal text-[#0b1220] font-semibold px-4 py-2 rounded-md">Save Settings</button>
+      </div>
+
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold flex items-center gap-1.5">⏱️ Monthly Man-Hours (plant-wide)</div>
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+            {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          {MONTH_NAMES.map((m, i) => (
+            <div key={m} className="flex flex-col gap-1">
+              <label className="text-xs text-grey">{m}</label>
+              <input
+                type="number"
+                value={manhours[i]}
+                onChange={(e) => setManhours((arr) => arr.map((v, idx) => (idx === i ? Number(e.target.value) : v)))}
+                onBlur={() => saveManhours(i)}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-grey mt-3">Saved automatically when you leave a field (used for TRIR/LTIFR calculation).</p>
+      </div>
+
+      <div className="card p-4 mt-6 border-l-4 border-coral">
+        <div className="text-sm font-semibold mb-2 text-coral">⚠️ Danger Zone</div>
+        <p className="text-xs text-grey mb-3">
+          Permanently deletes every record in all trackers (does not touch Settings or man-hours). Use this once
+          to clear demo/sample data before your team starts entering real records. Cannot be undone.
+        </p>
+        <button onClick={clearAllData} disabled={clearing} className="bg-coral text-[#0b1220] font-semibold px-4 py-2 rounded-md disabled:opacity-50">
+          {clearing ? "Clearing…" : "Clear All Tracker Data"}
+        </button>
+        {clearResult && <span className="ml-3 text-sm text-grey">{clearResult}</span>}
+      </div>
+    </div>
+  );
+}

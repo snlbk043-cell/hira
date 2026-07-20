@@ -1,0 +1,432 @@
+# RCPL EHS Dashboards
+
+Two deliverables live here:
+
+1. **`RCPL_Integrated_EHS_Management_System.xlsm`** — the full enterprise EHS system
+   (25 registers + 25 dashboards + Executive + Leadership + Settings + Help). *Latest.*
+2. **`RCPL_Executive_EHS_KPI_Dashboard.xlsm`** — the original single executive dashboard.
+
+---
+
+# RCPL Integrated EHS Management System  *(RCPL_Integrated_EHS_Management_System.xlsm)*
+
+A complete, single-workbook corporate EHS system — structure adopted from the client's
+`HSE_Full_System.xlsx` and rebuilt as a fully **live, formula-driven, macro-enabled**
+workbook (62 sheets).
+
+## Gap analysis → what was added
+The original executive dashboard covered incidents, inspections, audits, training, PTW,
+statutory, CAPA. Integrating the client's HSE structure added the **missing registers &
+their dashboards**: Safety Walkthroughs, Safety Meetings, Safety Bulletins, Management
+Visits, Management Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority,
+Alcohol Tests, PTW Audits, NC Management, JSA Risk Assessment, HSE Observations,
+Corrective Actions, Internal/External Audits (split), plus **Leadership Review, Settings
+and Help** sheets.
+
+## Structure (62 sheets)
+| Group | Sheets |
+|---|---|
+| **Navigation** | `Home` |
+| **Rollups** | `Executive Dashboard`, `Leadership Review` |
+| **Per-register dashboards (25)** | `Dash · <register>` — one interactive dashboard per register |
+| **Registers (25)** | Toolbox Talks, JSA Risk Assessment, Training, HSE Observations, Workplace/Equipment Inspections, Safety Walkthroughs, Safety Meetings, Safety Bulletins, Emergency Drills, Internal/External Audits, Management Visits/Reviews, Disciplinary Actions, Safety Awards, Stop Work Authority, Alcohol Tests, PTW Audits, Corrective Actions, NC Management, Unsafe Acts/Conditions, Incident, Environmental Performance |
+| **Engine & config** | `Calculations`, `Master Data`, `Settings`, `Help` |
+
+## Round 6: every tracker dashboard rebuilt with bespoke, tracker-specific analysis
+The 24 tracker dashboards previously shared one generic template (Monthly Volume + Category
+breakdown + Secondary distribution) regardless of what the tracker actually measured. Each
+one now gets its own "signature" chart(s) chosen for what's genuinely measurable there:
+- **Toolbox Talks** — Topic × Department coverage heat-map (mirrored live onto the dashboard,
+  not just a pointer note) + Effectiveness mix.
+- **JSA** — Risk Level mix trend (stacked area, is HIRA maturity rising?) + Approval funnel.
+- **Training** — Cumulative YTD training-hours trend + Pass Rate by Training Type.
+- **HSE Observations** — **Safe : At-Risk ratio trend** (the real BBS industry KPI, previously
+  missing entirely).
+- **Workplace Inspections** — Non-Conformances by Area (Pareto) + NC trend.
+- **Equipment Inspections** — Critical Findings trend. **Walkthroughs** — frequency trend.
+- **Safety Meetings** — Action Items Raised vs Closed trend (exposes a growing backlog, not
+  just a closure %).
+- **Safety Bulletins** — Reach % by Distribution Method (which channel actually works).
+- **Emergency Drills** — **Actual vs Target Response Time trend** (real existing data,
+  previously buried) + Drill Type coverage.
+- **Internal/External Audits** — Major NC trend + an Internal-vs-External Major-NC-rate
+  comparison chart on both.
+- **Management Visits** — Visits-by-Department (leadership-attention equity check).
+- **Management Reviews** — Decisions Made vs Actions Assigned trend (do decisions convert to
+  tracked action, or just talk?).
+- **Disciplinary Actions** — Violation Type Pareto + Offense Level mix (repeat-offense signal).
+- **Safety Awards** — Recognition by Department (is recognition concentrated unfairly?).
+- **Stop Work Authority** — Downtime trend + Avg Downtime by Severity.
+- **Alcohol Tests** — Positive-rate trend.
+- **PTW Audits** — Compliance % by Permit Type (exposes the weakest permit category).
+- **Corrective Actions** — On-Time vs Delayed trend (using the Timeliness field, previously
+  unused) + Source Pareto.
+- **NC Management** — Root-Cause Pareto (the "Root Cause / CAPA" field was generating random
+  topic text before this round — fixed to draw from a real root-cause pool).
+- **Unsafe Acts / Unsafe Conditions** — Unsafe-Act-vs-Condition ratio trend (is plant risk
+  more behavioural or environmental?) + Top-10 types on each.
+- **Incident** — Open-Incident Ageing buckets (0-7/8-15/16-30/31+ days, using the "Ageing
+  (Days)" field, previously never charted) + Person Type mix (Employee/Contractor/Visitor).
+
+All of this reuses the existing RAG-vs-target cards, sparklines, drill-down hyperlinks,
+Department slicer and Monthly Performance Matrix — this round is a content/analysis
+redesign of the chart layer, not a re-platform.
+
+## Round 7: every tracker dashboard's 8 KPI cards now match the client's own reference
+## dashboard (`Share_HSE_Full_System2.xlsx`) card-for-card
+Previously each tracker used a generic Total/Closed/Open/Overdue card template. All 24
+tracker dashboards now carry the **exact 8 KPI cards** (label, order and metric) the client's
+own reference workbook defines for that tracker — e.g. Training now shows Total Trainings /
+Completed / In Progress / Scheduled / Avg Attendance % / Total Hours / Pass Rate /
+Certificates instead of a generic Total/Closed/Open/Overdue row. Round 6's bespoke
+"signature" charts (BBS Safe:At-Risk ratio, Drill response-time actual-vs-target, CAPA
+on-time-vs-delayed, NC Root-Cause Pareto, Incident ageing buckets, Toolbox heat-map, etc.)
+are kept underneath as a bonus **Advanced Analysis** section on each dashboard — nothing
+from Round 6 was removed.
+
+Getting the cards to show real, non-zero numbers (not just correctly-labeled zeros) required
+rebuilding each register's underlying Status/category value pools to match the reference's
+actual vocabulary, since the two systems previously used different status domains for the
+same field. Cross-checked every one of the ~120 status/category literals referenced by the
+new KPI formulas against the reference file's own dashboards and register data; fixed the
+mismatches this surfaced:
+- **Safety Walkthroughs** — pool had `Cancelled` where the reference uses `Overdue`.
+- **Workplace/Equipment Inspections** — dropped a `Cancelled` value the reference doesn't use.
+- **Corrective Actions** — added the reference's `Cancelled` status.
+- **Emergency Drills** — added the reference's `Rescheduled` status.
+- **Management Reviews** — added the reference's `Scheduled` status.
+- **JSA** — added the reference's `Rejected` approval outcome.
+- **Disciplinary Actions** — the `Action Taken` pool never generated `Termination`, so the
+  "Terminations" KPI card silently showed 0; added it.
+- **Stop Work Authority** — the "Resolved" card was wired to the wrong field (`Investigation
+  Done = Yes`) instead of `Resolution = Resolved`; also added the missing `Resolved` value to
+  the Resolution pool.
+
+Also fixed a latent bug (pre-dating this round) where the Department-table and Monthly-Matrix
+status breakdowns always fell back to a generic status pool regardless of tracker, because
+the lookup key never matched; they now use each tracker's real pool.
+
+## Round 8: Leadership Review depth + a per-tracker Advanced Analysis section
+Six new blocks on **Leadership Review**:
+- **System Health radar** — a 24-point radar plotting every tracker's live RAG status (via its
+  own representative closure/compliance KPI), with the full detail as a table alongside it.
+- **Department League Table** — departments ranked by a composite score (average of Training %,
+  Obs Closure % and CA Closure %, penalised for Recordable incidents), not just an incident-only
+  score.
+- **System-Wide Action Backlog** — total open/overdue items across Corrective Actions, NC
+  Management, HSE Observations, Workplace/Equipment Inspections, Walkthroughs and Unsafe
+  Act/Condition registers, broken into 0-7/8-15/16-30/31+ day ageing buckets.
+- **Leading : Lagging ratio trend** — a 12-month trend of proactive activity (Toolbox, Training,
+  Observations, Inspections, Audits, Drills, PTW, Meetings, JSA) versus reactive outcomes
+  (Incidents, NCs, Disciplinary actions), plus a Q1-Q4 strip for Total Incidents, Training
+  Compliance % and CA Closure %.
+- **Auto-generated insight bullets** — 4 formula-driven sentences (TRIR movement, the
+  lowest-scoring department, system-wide backlog size, current leading:lagging ratio) that
+  update live with the data, not static commentary.
+
+A new **Advanced Analysis** section appears on every tracker dashboard that has something
+genuinely new to add beyond its existing KPI cards and signature charts:
+- **Overdue-ageing chart** (0-7/8-15/16-30/31+ days) on the 8 trackers with a due-date field:
+  Corrective Actions, NC Management, HSE Observations, Workplace/Equipment Inspections,
+  Walkthroughs, Unsafe Acts, Unsafe Conditions.
+- **Repeat-offender watchlist** — top-5 departments by High/Critical severity (or, for the three
+  inspection registers with no Risk Level field, by summed Critical Findings) — on JSA, HSE
+  Observations, Workplace/Equipment Inspections, Walkthroughs, Unsafe Acts/Conditions, NC
+  Management and Stop Work Authority.
+- **Target-vs-Actual trend with a next-month forecast** — Excel's own `TREND()` linear
+  projection appended as a 13th point, on the four trackers that track both a target and an
+  actual monthly figure: Toolbox Talks, Safety Bulletins, Emergency Drills, Management Reviews.
+- **Cost-impact rollup** — Stop Work downtime and Incident lost days converted to an estimated
+  cost, using two new Settings rates (`Downtime Cost per Minute`, `Lost-Day Cost per Day`) — not
+  a fabricated number, a transparent, user-editable rate × a real sum.
+
+Every tracker dashboard also gained a **month-over-month delta strip** under its KPI cards
+("This month (Jun): 14  vs  May: 11  ▲ +27.3%"), independent of whether a specific Register
+Month is selected.
+
+## Round 11: Executive Snapshot — a dense one-page board view (client reference layout)
+- **New "Executive Snapshot" sheet** — a client shared a LinkedIn post of a dense, ring-KPI +
+  chart-grid one-page EHS dashboard from another vendor and asked for something similar. Built
+  it as a 62nd sheet inside the existing workbook (reuses the live Calculations engine, not a
+  separate file) in the same dark navy/teal theme as the rest of Round 10: 8 headline KPI
+  cards (Inductions, Awareness Programs, First Aid/Recordable/Near Miss, Open NCs, Work Permits
+  Issued, Est. Cost Impact), a 3x3 chart grid (monthly trends, cost breakdown, NC trend, PPE
+  issued-vs-used), a 4-card icon strip (reusing the Board Pack PPT's icon art — no stock/plant
+  photography, since we don't have any and won't pass off generic photos as real RCPL shopfloor
+  images), and a dense multi-table strip at the bottom (EHS Summary, Safety Cases, Cost Status,
+  Audits, Work Permit Status, PPE by Location).
+- **Scoping decisions, made explicitly with the client rather than assumed:** the reference
+  also showed OEE %, machine-downtime and loss-type tables — genuine manufacturing/production
+  metrics, not EHS data, and RCPL's system has no such register. Left out entirely rather than
+  fabricate plant-performance numbers. PPE Issued/Used *was* requested and added as a small
+  5-location editable table on Settings (`PPE_Loc`/`PPE_Issued`/`PPE_Used`), the same
+  safe-addition pattern used for Environmental Performance in Round 10.
+- **New live calculations, all additive** (Calculations sheet): a `induction_total` monthly
+  series (Training register, Training Type = Induction), plus a small block of period-filtered
+  scalars/mini-tables (Work Permits Issued/Deviations, Lost-Day & Stop-Work-Downtime cost
+  estimates, Safety Cases, Audits Internal vs External) — all built from existing register data
+  via the same `mCrit`/`dCrit` filtered `COUNTIFS`/`SUMIFS` pattern used everywhere else in the
+  system, reusing existing `EX` KPI-card cells wherever one already existed instead of
+  recomputing.
+
+## Round 10: dark-theme reskin, a true 5x5 risk matrix, and a 25th register (Environmental)
+- **Dark navy/teal reskin of every dashboard** — Home, Cover Page, Executive Dashboard,
+  Leadership Review, and all 25 per-tracker dashboards now use the dark navy/teal/gold/coral
+  palette from the Board Pack PPT (`NAVY_BG #0B1220`, cards `#111C33`/`#162440`, teal accent
+  `#14B8A6`) instead of the original white/blue theme. Charts, KPI cards, tables and gauges all
+  reflow through a new dark format set (`EHS.FD`/`cardfmt_dark`/dark chart styling). The 25
+  data-entry **registers** (and Master Data/Settings/Calculations/Data Quality) intentionally
+  stay in the original light theme — those are working data-grids, not visual dashboards, and
+  restyling them carried no benefit and real regression risk.
+- **Persistent "sticky" navigation** — every dashboard now freezes its header + nav row
+  (`freeze_panes`) so Home/Executive/Leadership/Register links stay visible while scrolling,
+  the practical equivalent of a left sidebar without restructuring the existing 18-column grid
+  layout that ~900 lines of chart/table placement already depend on (a true column-based sidebar
+  would have meant re-deriving every hardcoded column offset in the dashboard builder - too much
+  regression risk for a cosmetic change we can't visually re-render in this environment).
+- **True Likelihood × Consequence 5×5 Risk Matrix** — JSA Risk Assessment gained two new fields,
+  `Likelihood` and `Consequence` (1-5 each, safe column-append). A live cross-tab on Calculations
+  (`COUNTIFS`, Register-Month + Department filtered) feeds a genuine 5×5 matrix on both the
+  Executive Dashboard and the JSA dashboard: colour is the fixed risk band for that L×C score
+  (🟢 Low 1-4, 🟡 Medium 5-9, 🟠 High 10-14, 🔴 Extreme 15-25), the number in each cell is a live
+  count. This is in addition to (not a replacement for) the existing Risk Rating × Department
+  heat map.
+- **New 25th tracker: Environmental Performance** — the "E" in EHS, previously untracked. New
+  register (Date, Department, Location, Waste Type, Waste Generated/Recycled (kg) with an
+  auto-computed Recycle Rate %, Energy (kWh), Water (m³), Fuel (L) consumption, Remarks) plus its
+  own full dashboard (8 KPI cards, waste-type mix, department breakdown, monthly performance
+  matrix) — follows the exact same generator/register/KPI/dashboard pattern as the other 24
+  trackers, wired into Home, the slicer builder and Data Quality automatically since those are
+  already driven generically off the register list.
+
+## Round 9: three new sheets, three new automation macros, and a safer take on YoY
+- **Data Quality sheet** — pure-formula integrity checks across all 24 registers: blank
+  Department/Date, duplicate IDs, dates outside the reporting year, and end-date-before-
+  start-date logic errors (e.g. a Completion Date earlier than its Date Raised). Every
+  register currently reports clean — the point is to catch bad *future* manual entry.
+- **Industry Benchmark overlay** — the Executive Dashboard's TRIR/LTIFR trend charts now plot
+  a dashed reference line against a configurable `Industry Benchmark TRIR`/`LTIFR` (Settings).
+- **Certificate expiry tracking** — Training gained a `Certificate Expiry` auto-column
+  (Date + a configurable `Certificate Validity` period) and an Advanced Analysis block showing
+  certificates expiring in the next 30/60/90 days, by department.
+- **Investigation Log** — a new 5-Why root-cause template: pick an Incident ID or NC No. and
+  Department/Classification-Severity auto-fill from that record; Why 1-5, Root Cause,
+  Corrective Action and Investigator are analyst input.
+- **My Actions** — a "🗂 Build Action Tracker" button (Home) consolidates every currently-overdue
+  row across the 8 due-date-bearing registers into one sheet (owner, due date, days overdue),
+  instead of only the per-tracker counts the System-Wide Backlog already showed.
+- **Overdue alert drafts** — "📧 Draft Overdue Alerts" groups My Actions by owner and opens one
+  Outlook draft per owner listing their items — draft only, never auto-sent, since owner names
+  aren't mapped to email addresses in this data.
+- **Department report export** — "📄 Export Department Report" temporarily filters the Executive
+  Dashboard + Leadership Review to one department and exports a PDF, then restores the prior
+  filter.
+- **Change Log** — a `Workbook_SheetChange` handler now appends who/what/when/old-value/new-value
+  to a new Change Log sheet whenever a cell is edited on any of the 24 registers.
+- **Year-over-Year comparison** — a new "Prior Year Actuals" block on Settings (TRIR, LTIFR,
+  Total Incidents, Training/Obs/CA Closure %) that you type in once a year, compared on
+  Leadership Review against the current year-to-date. **Scoping note:** a *true* YoY would need
+  a second year of underlying register data and a Year filter threaded through every one of the
+  ~200 formula call sites that currently assume a single reporting year — too invasive a refactor
+  of an already-validated system to risk here. This additive version delivers the same leadership
+  conversation (this year vs last year) without that regression risk; ask if you'd like the full
+  two-year rebuild as a separate, dedicated pass.
+
+## Round 5: per-tracker slicers, real RAG-vs-target on every card, sparklines, radar upgrade,
+## department data bars, Top Movers, print-ready layout
+- **Per-tracker slicers** — a "🎚 Add Tracker Slicers" button (Home) adds a real, Table-bound
+  Department slicer to each of the 21 tracker dashboards whose register has a Department
+  column (Bulletins/Drills/Management Reviews don't), independent of the Executive filters.
+- **RAG-vs-target on every one of the ~49 KPI cards** — not just the variance arrow. Each
+  card's coloured strip is now a live 🟢🟡🔴 status against a real target: percentage KPIs
+  compare to explicit corporate targets on Settings (extended with PTW/close-out/attendance/
+  alcohol targets), and every count-based KPI (leading activity volumes, lagging incident
+  counts) compares against an auto-computed rolling 12-month baseline scaled to the selected
+  period — no arbitrary numbers invented, and every card is genuinely evaluated.
+- **Sparklines on every KPI card** (Executive + Leadership) — a 12-month inline trend line,
+  including on ratio/percentage metrics (which needed new monthly ratio series to support it).
+- **Radar chart upgrade** — now plots Actual vs Target as two overlaid rings across 8 axes
+  (was 6, value-only).
+- **Live Department Performance table** on every tracker dashboard (was chart-only before),
+  with a data bar on the Count column for instant ranking.
+- **Monthly Performance Matrix RAG colouring** — percentage rows get a green-amber-red colour
+  scale across their own 12 months so a missed month jumps out immediately.
+- **Top Movers panel** on Leadership Review — the 3 best-improving and 3 worst-regressing KPIs
+  this period, ranked by normalised %Δ×polarity so metrics of very different scale are
+  comparable (a lagging metric's improvement and a leading metric's improvement rank on the
+  same footing).
+- **Print-ready layout** — landscape, fit-to-1-page-wide, bounded print areas on every
+  dashboard sheet; registers repeat their 3-row header on each printed page.
+
+## Round 4: native pivot tables, sheet protection, real monthly man-hours, board pack
+- **Native PivotTables + Slicers** — a "📊 Build Pivot Analysis" button on Home runs a VBA
+  macro that creates three genuine, fully-interactive Excel PivotTables (Incident, Training,
+  Corrective Actions) with Slicers, built from the real Tables — not a formula substitute.
+  Re-runnable any time; rebuilds the sheet fresh.
+- **Sheet protection** — every formula/label cell is locked; only genuine input cells (each
+  register's data-entry columns, Settings' amber parameters, the Executive filter drop-downs)
+  stay editable. Applied via VBA with `UserInterfaceOnly:=True` so the macros themselves can
+  still write (refresh stamps, filter resets) while a human can't accidentally overwrite a
+  formula. A "🔓 Unlock Sheets to Edit" button is provided for anyone who needs to restructure.
+- **Real monthly man-hours** — Settings now has an editable Jan–Dec man-hours table (instead
+  of one flat annual number ÷ 12). TRIR/LTIFR use the exact hours for whatever period is
+  selected, so a low-hours month (e.g. a shutdown) no longer distorts the rate.
+- **Board Pack PDF** — a new Cover Page + "📦 Export Board Pack" button combines the Cover,
+  Executive Dashboard and Leadership Review into one ready-to-send PDF.
+- **Fixed a real range-limit bug**: formula ranges were capped at 5,000 rows (contradicting
+  the "supports 100,000 records" claim); now genuinely 100,000. Auto-calculated columns
+  (Attendance %, Ageing, Timeliness, etc.) are also pre-filled with live formulas 1,000 rows
+  deep so new data entered below the sample rows works immediately without copying formulas.
+
+## Round 3: every tracker on the Executive Dashboard + rich per-tracker analysis (131 charts)
+- **Executive Dashboard KPI wall** now carries a headline KPI from **all 24 trackers** (not
+  a subset) — e.g. Toolbox Talks (# + Avg Attendance %), JSA (# + % Approved), Workplace/
+  Equipment Inspections (# + Closure %/Critical Findings), Safety Meetings/Bulletins/Visits/
+  Reviews (# + Close-out %/Reach %/Attendance %), Internal/External Audits (# + NCs), Safety
+  Awards, Stop Work Authority, Alcohol Tests (+ Positive % on the lagging side), Unsafe Act/
+  Condition reporting + closure %, NC Management closure %, alongside the incident-driven
+  lagging KPIs (TRIR, LTIFR, Recordable, Near Miss, First Aid, Lost Days, Disciplinary). ~49
+  variance cards total, split into 🟥 Lagging / 🟩 Leading bands — **every card is a hyperlink
+  that drills straight into that tracker's own dashboard.**
+- **Full RCPL executive chart suite** — all of the following are on the Executive Dashboard,
+  none missing: Monthly Incident Trend, First Aid Trend, Near Miss Trend, TRIR & LTIFR Trend
+  (dual-axis), Unsafe Act vs Unsafe Condition (stacked), Incident Classification (doughnut),
+  Root Cause Pareto, Department-wise Safety Score, Safety Observation Trend (area), Monthly
+  Performance Radar, Heinrich Incident Pyramid, Risk Heat Map (5×5-style, colour-scaled), Top
+  10 Unsafe Acts / Unsafe Conditions / High-Risk Areas, and 6 compliance gauges (Training,
+  PTW, Obs Closure, CA Closure, Inspection Closure, NC Closure).
+- **Every one of the 24 tracker dashboards** now mirrors the client's own `Dashboard – X`
+  analysis layout: **8 KPI tiles** (volume/status row + tracker-specific metrics row),
+  Monthly Volume + primary Category Breakdown + secondary Distribution charts, a Department
+  Performance chart, and a live **Monthly Performance Matrix** (key measures × Jan–Dec + YTD).
+
+## What's live
+- **Registers** keep the client's exact column layout with a 3-row header (emoji title /
+  legend / column headers), structured Tables, dropdown validation from **Master Data**,
+  and **auto-calculated** columns (Attendance %, Close-out %, Reach %, Compliance %,
+  Incident Ageing, CA Timeliness) written as formulas.
+- **Executive Dashboard** — RCPL-card style with a **period-on-period variance engine**:
+  pick a **Period** (any month → vs previous month, or Q1–Q4 → vs previous quarter) and a
+  Department; every KPI card shows the current value, the prior-period value and a
+  **▲/▼ Δ% vs prior** indicator that is **polarity-coloured** (for lagging metrics a drop is
+  green, for leading metrics a rise is green). Cards are split into two clearly-labelled
+  bands — **🟥 LAGGING** (TRIR, LTIFR, incidents, recordable, LTI+fatality, near miss, first
+  aid, lost days, disciplinary, open NCs) and **🟩 LEADING** (trainings, training compliance,
+  observations, obs closure, toolbox, inspections, audits, PTW compliance, drills, CA
+  closure). Plus leading-vs-lagging bar pair, a **Heinrich incident pyramid**, 12-month
+  trend, four compliance **gauges** and a **RAG (🟢🟡🔴) scorecard** vs the Settings targets.
+- **Leadership Review** — condensed corporate scorecard + incident severity mix + trends.
+- **24 per-register dashboards** — each with KPI tiles (total, closure %, key metric),
+  monthly-volume, category-breakdown and status-distribution charts, all `COUNTIFS`-driven.
+- **Settings** — man-hours, TRIR/LTIFR multipliers and RAG targets as named cells; change
+  a value and every rate/RAG light updates (the client file showed `#NAME?` here — fixed).
+- **Working VBA** — Refresh, Reset Filters, Home, Print, Export PDF; hyperlink navigation
+  throughout. Same MS-OVBA/MS-CFB builder, validated with `oletools`.
+
+With the shipped sample data the engine computes a realistic pyramid (≈29 near-miss → 1 LTI),
+TRIR ≈ 2.2, LTIFR ≈ 2.0, Training completion ≈ 62 %.
+
+## Regenerating
+```bash
+cd build && python3 hse_build.py   # -> ../RCPL_Integrated_EHS_Management_System.xlsm
+```
+`hse_data.py` (specs + sample data), `hse_build.py` (registers/engine/config),
+`hse_dash.py` (dashboards), `vba_code_hse.py` (VBA), `vbabin.py` (vbaProject.bin builder).
+
+---
+
+# RCPL Executive EHS KPI Dashboard  *(RCPL_Executive_EHS_KPI_Dashboard.xlsm)*
+
+**`RCPL_Executive_EHS_KPI_Dashboard.xlsm`** — a fully-functional, macro-enabled
+Excel workbook: a Fortune‑500‑style Executive Safety KPI dashboard for the
+Reliance Consumer Products Ltd (Campa Cola) CSD plant.
+
+Everything is live: every KPI, chart and gauge recalculates automatically from
+the 20 raw‑data registers. Change a filter and the whole dashboard updates.
+
+---
+
+## What's inside (35 sheets)
+
+| Group | Sheets |
+|---|---|
+| **Navigation** | `Home` |
+| **Dashboards** | Executive, Incident, Inspection, Audit, Training, PTW, Statutory, CAPA, Department |
+| **Engine** | `Calculations` (KPI engine), `Master Data` |
+| **Registers (20)** | Incident, First Aid, Near Miss, Safety Observation, Unsafe Act, Unsafe Condition, Inspection, Audit, Statutory Compliance, Permit To Work, Training, PPE Compliance, Contractor Safety, Toolbox Talk, BBS Observation, Emergency Drill, Fire Equipment, Risk Assessment, CAPA Tracker, Man‑hours Master |
+| **Docs** | Documentation, Instructions, Formula Sheet |
+
+## Highlights
+- **20 KPI cards** — Man‑hours, TRIR, LTIFR, LTI, MTC, First Aid, Near Miss,
+  HiPo Near Miss, Safety Observations, Unsafe Acts/Conditions, Good Catch,
+  and PTW / Inspection / Audit / Training / PPE / Statutory / Action‑closure
+  compliance %, plus a composite Safety Score. Each has a **live formula** and
+  a 12‑month **sparkline**.
+- **5 global filters** (Year, Month, Department, Area, Shift) as data‑validation
+  drop‑downs that drive *every* card, chart and gauge via a resolved‑criteria
+  engine — no manual updates.
+- **30+ native charts**: line, dual‑axis TRIR/LTIFR, stacked column, doughnut,
+  **Pareto**, horizontal bar, area, **radar**, and **half‑doughnut gauges**.
+- **KPI engine**: `COUNTIFS`/`SUMIFS`/`AVERAGEIFS` over 100,000‑row dynamic
+  ranges (`supports_100000_records`), with `IFERROR` guards throughout.
+- **Conditional formatting**: 5×5 risk heat‑map (color scale), department
+  traffic‑light icon set, data bars on the monthly trend.
+- **Working VBA** (see below): Refresh, Reset Filters, Navigate, Print, Export PDF.
+- **20 structured Excel Tables**, dynamic named ranges, hyperlinked navigation.
+
+## KPI formulas (see the *Formula Sheet*)
+```
+TRIR   = Recordable × 200,000 / Man‑hours
+LTIFR  = LTI × 1,000,000 / Man‑hours
+Severity Rate = Lost Days × 1,000,000 / Man‑hours
+Safety Score  = 0.18·PTW + 0.15·Insp + 0.12·Audit + 0.15·Train
+              + 0.15·PPE + 0.10·Statutory + 0.15·Action‑closure
+```
+With the shipped sample data the engine computes TRIR ≈ 0.87, LTIFR ≈ 1.51,
+PTW ≈ 90.9 %, Training ≈ 83.6 % — industry‑realistic values.
+
+---
+
+## Using it
+1. Open in **Microsoft Excel** and **Enable Macros** when prompted (the workbook
+   opens on `Home`, sets the last‑refresh stamp and does a full recalculation).
+2. Navigate with the tiles/buttons on `Home` or the chip strip on each dashboard.
+3. On the **Executive Dashboard**, change the five filters — everything updates.
+4. Buttons: **⟳ Refresh**, **⟲ Reset Filters**, **⌂ Home**, **🖨 Print**, **PDF**.
+5. Add data by typing new rows under any register Table, then click **Refresh**.
+
+> Even if your security policy blocks macros, the workbook is still fully usable:
+> the hyperlink chips navigate between sheets and all KPIs/charts remain live
+> (they are formula‑driven, not macro‑driven).
+
+## About the VBA
+The macros are embedded as a genuine `vbaProject.bin` built to the MS‑OVBA /
+MS‑CFB specifications. It was validated with Microsoft's own parsing logic
+(`oletools.olevba`), which extracts both modules (`ThisWorkbook`, `modDashboard`)
+cleanly. Modules: `RefreshDashboard`, `RefreshAllData`, `ResetFilters`,
+`GoHome`, `NavExecutive…NavDepartment`, `PrintDashboard`, `ExportDashboardPDF`,
+`ExportAllDashboardsPDF`, and a `Workbook_Open` handler.
+
+## A note on pivot tables & slicers
+No Python library can author native Excel **pivot tables / slicers** from
+scratch. Rather than ship non‑functional placeholders, the interactivity is
+implemented with an equivalent that **works immediately on open**: a live
+`COUNTIFS`/`SUMIFS` engine plus data‑validation filter drop‑downs and native
+pivot‑style charts. To convert to native pivots later, point a PivotTable at any
+register Table (they are already structured Tables) and add slicers.
+
+---
+
+## Regenerating the workbook
+```bash
+cd build
+pip install xlsxwriter          # openpyxl/oletools optional, for validation
+python3 xlsm_build.py           # -> ../RCPL_Executive_EHS_KPI_Dashboard.xlsm
+```
+| File | Purpose |
+|---|---|
+| `build/xlsm_build.py` | Registers, Master Data, KPI engine, orchestration |
+| `build/xlsm_dash.py`  | Dashboards, charts, gauges, navigation, docs |
+| `build/data_gen.py`   | Realistic sample data generator (seeded) |
+| `build/vba_code.py`   | VBA module source |
+| `build/vbabin.py`     | MS‑OVBA + MS‑CFB `vbaProject.bin` builder |

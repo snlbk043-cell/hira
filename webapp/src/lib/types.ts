@@ -1,0 +1,48 @@
+export type Summary = {
+  year: number;
+  department: string;
+  month: number;
+  TRIR: number;
+  LTIFR: number;
+  trirMonthly: number[];
+  ltifrMonthly: number[];
+  totalIncidents: number;
+  recordableTotal: number;
+  lostDaysTotal: number;
+  classificationCounts: Record<string, number>;
+  monthlyIncidents: number[];
+  rootCauseCounts: Record<string, number>;
+  bodyPartCounts: Record<string, number>;
+  deptScore: Record<string, number>;
+  riskRatingByDept: Record<string, Record<string, number>>;
+  deptMonthHeat: Record<string, number[]>;
+  areaRiskHeat: Record<string, Record<string, number>>;
+  training: { pct: number; total: number; statusCounts: Record<string, number> };
+  obs: { pct: number; total: number; statusCounts: Record<string, number> };
+  ca: { pct: number; total: number; statusCounts: Record<string, number> };
+  walk: { pct: number; total: number; statusCounts: Record<string, number> };
+  ptw: { pct: number; total: number };
+  jsa: { pct: number; total: number };
+  leadingMonthly: number[];
+  laggingMonthly: number[];
+  backlog: Record<string, number>;
+  backlogAging: Record<string, number>;
+  top10UnsafeActs: { label: string; value: number }[];
+  top10UnsafeConditions: { label: string; value: number }[];
+  top10Areas: { label: string; value: number }[];
+  costImpact: { lostDayCost: number; downtimeCost: number; downtimeMinTotal: number };
+  prior: { totalIncidents: number; recordableTotal: number; ltiFatalTotal: number; trainingPct: number; obsPct: number; caPct: number };
+  safeWork: {
+    lastRecordableDate: string | null;
+    safeDaysRecordable: number | null;
+    safeManHoursRecordable: number | null;
+    bestStreakRecordableDays: number | null;
+    lastLtiDate: string | null;
+    safeDaysLti: number | null;
+    byDepartment: Record<string, { lastRecordableDate: string | null; safeDays: number | null }>;
+  };
+  settings: Record<string, number>;
+  manhoursByMonth: number[];
+};
+
+export const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
