@@ -13,6 +13,19 @@ import RiskMatrix from "@/components/RiskMatrix";
 import EvidencePanel from "@/components/EvidencePanel";
 import PhotoGallery from "@/components/PhotoGallery";
 import FilesList from "@/components/FilesList";
+import ComplianceCalendar from "@/components/ComplianceCalendar";
+import EventsCalendar from "@/components/EventsCalendar";
+import EngagementInsights from "@/components/EngagementInsights";
+import SafetyAwardsPodium from "@/components/SafetyAwardsPodium";
+
+const COMPLIANCE_CALENDAR_TRACKERS = new Set([
+  "workplace-inspections",
+  "equipment-inspections",
+  "safety-walkthroughs",
+  "internal-audits",
+  "external-audits",
+  "statutory-compliance",
+]);
 import { exportTrackerPdf, exportTrackerPpt, exportTrackerExcel } from "@/lib/exportUtils";
 
 const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6";
@@ -309,6 +322,16 @@ export default function TrackerPageClient({
             ))}
           </div>
 
+          {COMPLIANCE_CALENDAR_TRACKERS.has(tracker.key) && (
+            <ComplianceCalendar trackerKey={evidenceKey} title={tracker.key === "statutory-compliance" ? "Statutory Compliance Calendar" : "Compliance Calendar"} />
+          )}
+          {tracker.key === "employee-engagement" && (
+            <>
+              <EventsCalendar rows={filteredRows} dateField="event_date" nameField="event_name" categoryField="category" title="Events Calendar" />
+              <EngagementInsights rows={filteredRows} />
+            </>
+          )}
+          {tracker.key === "safety-awards" && <SafetyAwardsPodium rows={filteredRows} />}
           <PhotoGallery trackerKey={evidenceKey} />
           <FilesList trackerKey={evidenceKey} />
 

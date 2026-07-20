@@ -3,7 +3,7 @@ import { TRACKERS } from "@/lib/trackers";
 
 export const dynamic = "force-dynamic";
 
-/** Wipes every row from all 25 tracker tables (demo/seed data cleanup). Does NOT
+/** Wipes every row from all tracker tables (demo/seed data cleanup). Does NOT
  * touch settings or manhours - those are configuration, not register entries.
  * Table names come only from the fixed TRACKERS config, never user input. */
 export async function POST() {

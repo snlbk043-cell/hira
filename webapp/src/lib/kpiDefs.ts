@@ -304,6 +304,32 @@ const BUILDERS: Record<string, Builder> = {
     k("⛽", "Fuel Consumed (L)", sumField(rows, "fuel_l"), "gold"),
     k("☣️", "Hazardous Waste Events", countIf(rows, is("waste_type", "Hazardous Waste")), "coral"),
   ],
+  "statutory-compliance": (rows) => [
+    k("🏛️", "Total Requirements", rows.length, "teal"),
+    k("✅", "Complied", countIf(rows, is("status", "Complied")), "teal"),
+    k("⏳", "Pending", countIf(rows, is("status", "Pending")), "gold"),
+    k("🔴", "Overdue", countIf(rows, is("status", "Overdue")), "coral"),
+    k("📊", "Compliance %", `${pct(countIf(rows, is("status", "Complied")), rows.length)}%`, "teal"),
+    k("🔁", "Recurring (non one-time)", countIf(rows, (r) => String(r.frequency) !== "One-time"), "purple"),
+    k("🏢", "Departments Covered", distinctField(rows, "department"), "purple"),
+    k("👤", "Unique Owners", distinctField(rows, "responsible_person"), "gold"),
+  ],
+  "employee-engagement": (rows) => [
+    k("🎉", "Total Events", rows.length, "teal"),
+    k("✅", "Completed", countIf(rows, is("status", "Completed")), "teal"),
+    k("🗓️", "Planned", countIf(rows, is("status", "Planned")), "gold"),
+    k("👥", "Total Participation", sumField(rows, "participation_count"), "purple"),
+    k("📊", "Avg Feedback Score %", `${avgField(rows, "feedback_score_pct")}%`, "teal"),
+    k("🏷️", "Categories Covered", distinctField(rows, "category"), "purple"),
+    k("🏢", "Departments Involved", distinctField(rows, "department"), "gold"),
+    k("🗓️", "This Month", countIf(rows, (r) => {
+      const v = r.event_date;
+      if (!v) return false;
+      const d = new Date(String(v));
+      const now = new Date();
+      return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }), "purple"),
+  ],
 };
 
 export function bespokeKpis(trackerKey: string, rows: Row[]): Kpi[] | null {

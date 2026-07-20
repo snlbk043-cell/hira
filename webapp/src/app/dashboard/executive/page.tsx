@@ -501,7 +501,7 @@ export default function ExecutiveDashboard() {
         </div>
       </ChartCard>
 
-      <ChartCard title="All 25 Trackers — At a Glance" className="mb-4">
+      <ChartCard title={`All ${TRACKERS.length} Trackers — At a Glance`} className="mb-4">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-1">
           {(health ?? TRACKERS.map((t) => ({ label: t.label, icon: t.icon, score: 1, detail: "Loading…" }))).map((h, i) => (
             <Link
@@ -520,7 +520,7 @@ export default function ExecutiveDashboard() {
         </div>
       </ChartCard>
 
-      <ChartCard title="RAG Status — All 25 Trackers" className="mb-4">
+      <ChartCard title={`RAG Status — All ${TRACKERS.length} Trackers`} className="mb-4">
         <div className="overflow-x-auto mt-1">
           <table className="w-full text-sm">
             <thead>

@@ -392,6 +392,36 @@ export const TRACKERS: TrackerDef[] = [
       { name: "remarks", label: "Remarks", type: "text" },
     ],
   },
+  {
+    key: "statutory-compliance", table: "statutory_compliance", label: "Statutory Compliance Register", icon: "🏛️",
+    description: "Legal & regulatory requirements — licenses, renewals, statutory inspections and next-due tracking.",
+    fields: [
+      { name: "review_date", label: "Review Date", type: "date", required: true, role: "date" },
+      { name: "department", label: "Department", type: "department", required: true, role: "department" },
+      { name: "requirement", label: "Requirement", type: "text", required: true },
+      { name: "applicable_law", label: "Applicable Law / Act", type: "text" },
+      { name: "frequency", label: "Frequency", type: "select", options: ["One-time","Monthly","Quarterly","Half-Yearly","Annually"], role: "category" },
+      { name: "last_complied_date", label: "Last Complied Date", type: "date" },
+      { name: "next_due_date", label: "Next Due Date", type: "date" },
+      { name: "status", label: "Status", type: "select", options: ["Complied","Pending","Overdue"], role: "status" },
+      { name: "responsible_person", label: "Responsible Person", type: "text" },
+      { name: "remarks", label: "Remarks", type: "text" },
+    ],
+  },
+  {
+    key: "employee-engagement", table: "employee_engagement", label: "Employee Engagement", icon: "🎉",
+    description: "Fun activities, wellness, CSR and team events — calendar, photos and participation.",
+    fields: [
+      { name: "event_date", label: "Event Date", type: "date", required: true, role: "date" },
+      { name: "department", label: "Department", type: "department", required: true, role: "department" },
+      { name: "event_name", label: "Event Name", type: "text", required: true },
+      { name: "category", label: "Category", type: "select", options: ["Fun Activity","Award Ceremony","Team Building","Wellness","CSR","Sports","Cultural"], role: "category" },
+      { name: "participation_count", label: "Participation Count", type: "number" },
+      { name: "feedback_score_pct", label: "Feedback Score %", type: "number", role: "metric_pct" },
+      { name: "status", label: "Status", type: "select", options: ["Completed","Planned"], role: "status" },
+      { name: "remarks", label: "Remarks", type: "text" },
+    ],
+  },
 ];
 
 export function trackerByKey(key: string): TrackerDef | undefined {

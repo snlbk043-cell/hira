@@ -44,9 +44,31 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [clearResult, setClearResult] = useState<string | null>(null);
+  const [hasLogo, setHasLogo] = useState(true);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoVersion, setLogoVersion] = useState(0);
+
+  async function uploadLogo(file: File) {
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/logo", { method: "POST", body: fd });
+      if (res.ok) { setHasLogo(true); setLogoVersion((v) => v + 1); }
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
+  async function removeLogo() {
+    if (!confirm("Remove the company logo and revert to the default icon?")) return;
+    await fetch("/api/logo", { method: "DELETE" });
+    setHasLogo(false);
+    setLogoVersion((v) => v + 1);
+  }
 
   async function clearAllData() {
-    if (!confirm("This permanently deletes every record in all 25 trackers. This cannot be undone. Continue?")) return;
+    if (!confirm("This permanently deletes every record in all trackers. This cannot be undone. Continue?")) return;
     setClearing(true);
     setClearResult(null);
     try {
@@ -94,10 +116,46 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-1">⚙️ Settings</h1>
-      <p className="text-grey text-sm mb-4">Targets, multipliers and monthly man-hours used across both dashboards.</p>
+      <p className="text-grey text-sm mb-4">Targets, branding, multipliers and monthly man-hours used across the whole system.</p>
 
       <div className="card p-4 mb-6">
-        <div className="text-sm font-semibold mb-1">Branding</div>
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">🖼️ Company Logo</div>
+        <p className="text-xs text-grey mb-3">Upload your company logo to replace the default icon at the top of the sidebar on every page.</p>
+        <div className="flex items-center gap-4">
+          {hasLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={logoVersion}
+              src={`/api/logo?v=${logoVersion}`}
+              alt="Current logo"
+              className="w-16 h-16 rounded-lg object-contain bg-white/5 border border-border"
+              onError={() => setHasLogo(false)}
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-lg flex items-center justify-center text-2xl bg-card-2 border border-border">🧭</div>
+          )}
+          <div className="flex flex-col gap-2">
+            <label className="text-xs px-3 py-1.5 rounded-md border border-teal/40 text-teal hover:bg-teal/10 cursor-pointer inline-block w-fit">
+              {logoUploading ? "Uploading…" : "📤 Upload New Logo"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={logoUploading}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); }}
+              />
+            </label>
+            {hasLogo && (
+              <button onClick={removeLogo} className="text-xs px-3 py-1.5 rounded-md border border-coral/40 text-coral hover:bg-coral/10 w-fit">
+                Remove Logo
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-4 mb-6">
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">🏷️ Branding</div>
         <p className="text-xs text-grey mb-3">Customize the name shown at the top of the sidebar on every page.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {Object.entries(BRANDING_LABELS).map(([key, label]) => (
@@ -111,7 +169,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-4 mb-6">
-        <div className="text-sm font-semibold mb-3">Targets & Benchmarks</div>
+        <div className="text-sm font-semibold mb-3 flex items-center gap-1.5">🎯 Targets & Benchmarks</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {Object.entries(SETTINGS_LABELS).map(([key, label]) => (
             <div key={key} className="flex flex-col gap-1">
@@ -132,7 +190,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-4 mb-6">
-        <div className="text-sm font-semibold mb-1">Cost Parameters</div>
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">💰 Cost Parameters</div>
         <p className="text-xs text-grey mb-3">Used only by the optional cost-impact tiles on the Executive Dashboard.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {Object.entries(COST_LABELS).map(([key, label]) => (
@@ -146,7 +204,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-4 mb-6">
-        <div className="text-sm font-semibold mb-1">Prior Year Actuals</div>
+        <div className="text-sm font-semibold mb-1 flex items-center gap-1.5">📅 Prior Year Actuals</div>
         <p className="text-xs text-grey mb-3">
           Type in last year&apos;s year-end figures for a genuine YoY comparison on Leadership Review — left at 0 (and
           hidden from the comparison) until you enter real numbers.
@@ -164,7 +222,7 @@ export default function SettingsPage() {
 
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-semibold">Monthly Man-Hours (plant-wide)</div>
+          <div className="text-sm font-semibold flex items-center gap-1.5">⏱️ Monthly Man-Hours (plant-wide)</div>
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -188,7 +246,7 @@ export default function SettingsPage() {
       <div className="card p-4 mt-6 border-l-4 border-coral">
         <div className="text-sm font-semibold mb-2 text-coral">⚠️ Danger Zone</div>
         <p className="text-xs text-grey mb-3">
-          Permanently deletes every record in all 25 trackers (does not touch Settings or man-hours). Use this once
+          Permanently deletes every record in all trackers (does not touch Settings or man-hours). Use this once
           to clear demo/sample data before your team starts entering real records. Cannot be undone.
         </p>
         <button onClick={clearAllData} disabled={clearing} className="bg-coral text-[#0b1220] font-semibold px-4 py-2 rounded-md disabled:opacity-50">

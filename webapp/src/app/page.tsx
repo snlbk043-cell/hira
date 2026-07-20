@@ -21,7 +21,7 @@ export default function Home() {
         ))}
       </div>
 
-      <h2 className="text-lg font-semibold mb-1">All 25 Trackers</h2>
+      <h2 className="text-lg font-semibold mb-1">All {TRACKERS.length} Trackers</h2>
       <p className="text-grey text-sm mb-3">Same list as the left sidebar — click any tracker for its KPI cards, trend charts and data entry form on one page.</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {TRACKERS.map((t) => (

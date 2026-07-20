@@ -11,9 +11,9 @@ type Row = Record<string, unknown>;
  * can see maturity by pillar, not just by individual register - same idea as
  * an ISO 45001-style elemental scorecard. */
 const ELEMENTS: { key: string; label: string; icon: string; trackerKeys: string[] }[] = [
-  { key: "leadership_training", label: "Leadership & Training", icon: "🎓", trackerKeys: ["training", "toolbox-talks", "safety-meetings", "management-reviews", "management-visits", "safety-awards"] },
+  { key: "leadership_training", label: "Leadership & Training", icon: "🎓", trackerKeys: ["training", "toolbox-talks", "safety-meetings", "management-reviews", "management-visits", "safety-awards", "employee-engagement"] },
   { key: "risk_management", label: "Risk Management (HIRA)", icon: "⚠️", trackerKeys: ["jsa", "hse-observations", "unsafe-acts", "unsafe-conditions", "stop-work-authority"] },
-  { key: "inspection_audit", label: "Inspection & Audit", icon: "🔍", trackerKeys: ["workplace-inspections", "equipment-inspections", "safety-walkthroughs", "internal-audits", "external-audits", "ptw-audits", "alcohol-tests"] },
+  { key: "inspection_audit", label: "Inspection & Audit", icon: "🔍", trackerKeys: ["workplace-inspections", "equipment-inspections", "safety-walkthroughs", "internal-audits", "external-audits", "ptw-audits", "alcohol-tests", "statutory-compliance"] },
   { key: "incident_ca", label: "Incident & Corrective Action", icon: "🔧", trackerKeys: ["incidents", "corrective-actions", "nc-management", "disciplinary-actions"] },
   { key: "emergency_preparedness", label: "Emergency Preparedness", icon: "🚨", trackerKeys: ["emergency-drills"] },
   { key: "communication", label: "Communication", icon: "📰", trackerKeys: ["safety-bulletins"] },

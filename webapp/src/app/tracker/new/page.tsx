@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FieldRole, FieldType } from "@/lib/trackers";
+import IconPicker from "@/components/IconPicker";
 
 type DraftField = {
   label: string;
@@ -150,12 +151,12 @@ export default function NewTrackerPage() {
         know exactly what dashboard and table you&apos;ll get before you create it.
       </p>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 items-start">
+      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_380px] gap-4 items-start">
         <form onSubmit={submit} className="space-y-4 min-w-0">
           <div className="card p-4 grid grid-cols-1 md:grid-cols-[80px_1fr] gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-grey">Icon (emoji)</label>
-              <input value={icon} onChange={(e) => setIcon(e.target.value)} maxLength={4} className="text-center text-xl" />
+              <label className="text-xs text-grey">Icon</label>
+              <IconPicker value={icon} onChange={setIcon} />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-grey">Tracker Name *</label>
@@ -183,29 +184,29 @@ export default function NewTrackerPage() {
             </p>
             <div className="space-y-2">
               {fields.map((f, i) => (
-                <div key={i} className="card p-2.5 bg-card-2">
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_140px_1fr_74px_24px] gap-2 items-start">
-                    <div className="flex flex-col gap-1">
+                <div key={i} className="card p-2.5 bg-card-2 min-w-0">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-[minmax(0,1fr)_130px_minmax(0,1fr)_70px_22px] gap-2 items-start">
+                    <div className="flex flex-col gap-1 col-span-2 sm:col-span-2 lg:col-span-1 min-w-0">
                       <label className="text-[10px] text-grey">Field Label</label>
-                      <input value={f.label} onChange={(e) => updateField(i, { label: e.target.value })} placeholder="e.g. Contractor Name" />
+                      <input value={f.label} onChange={(e) => updateField(i, { label: e.target.value })} placeholder="e.g. Contractor Name" className="w-full min-w-0" />
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1 min-w-0">
                       <label className="text-[10px] text-grey">Type</label>
-                      <select value={f.type} onChange={(e) => updateField(i, { type: e.target.value as FieldType })}>
+                      <select value={f.type} onChange={(e) => updateField(i, { type: e.target.value as FieldType })} className="w-full min-w-0">
                         {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1 col-span-2 sm:col-span-2 lg:col-span-1 min-w-0">
                       <label className="text-[10px] text-grey">Role (drives KPIs/charts)</label>
-                      <select value={f.role} onChange={(e) => updateField(i, { role: e.target.value as FieldRole | "none" })}>
+                      <select value={f.role} onChange={(e) => updateField(i, { role: e.target.value as FieldRole | "none" })} className="w-full min-w-0">
                         {ROLE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </div>
                     <div className="flex flex-col gap-1 items-center">
-                      <label className="text-[10px] text-grey">Required</label>
+                      <label className="text-[10px] text-grey whitespace-nowrap">Required</label>
                       <input type="checkbox" checked={f.required} onChange={(e) => updateField(i, { required: e.target.checked })} className="mt-1.5 w-4 h-4" />
                     </div>
-                    <button type="button" onClick={() => removeField(i)} className="text-coral mt-4" aria-label="Remove field">✕</button>
+                    <button type="button" onClick={() => removeField(i)} className="text-coral mt-4 justify-self-end" aria-label="Remove field">✕</button>
                   </div>
                   {f.role !== "none" && <p className="text-[11px] text-teal mt-1.5">ℹ️ {roleHint(f.role)}</p>}
                   {f.type === "select" && (
@@ -227,7 +228,7 @@ export default function NewTrackerPage() {
         </form>
 
         {/* Live preview */}
-        <div className="xl:sticky xl:top-4 space-y-3">
+        <div className="2xl:sticky 2xl:top-4 space-y-3 min-w-0">
           <div className="card p-4" style={{ animation: "kpi-rise 320ms ease both" }}>
             <div className="flex items-center gap-2 mb-3">
               <span className="w-1.5 h-1.5 rounded-full bg-teal shadow-[0_0_8px_2px_rgba(20,184,166,0.6)]" />

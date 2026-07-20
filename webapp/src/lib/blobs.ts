@@ -6,3 +6,8 @@ import { getStore } from "@netlify/blobs";
 export function attachmentsStore() {
   return getStore("attachments");
 }
+
+/** Single-key blob store for the company logo shown in the Sidebar. */
+export function brandingStore() {
+  return getStore("branding");
+}

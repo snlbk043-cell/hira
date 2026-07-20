@@ -66,17 +66,35 @@ function useCustomTrackers() {
   return customTrackers;
 }
 
+function SidebarLogo() {
+  const [hasLogo, setHasLogo] = useState(true);
+  if (!hasLogo) {
+    return (
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
+        style={{ background: "linear-gradient(155deg, #14b8a633, #14b8a612)", border: "1px solid #14b8a640", boxShadow: "0 4px 14px -6px #14b8a680" }}
+      >
+        🧭
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/api/logo"
+      alt="Company logo"
+      className="w-8 h-8 rounded-lg object-contain shrink-0 bg-white/5 border border-border"
+      onError={() => setHasLogo(false)}
+    />
+  );
+}
+
 function SidebarContent({ pathname, onNavigate, siteName, companyName }: { pathname: string; onNavigate?: () => void; siteName: string; companyName: string }) {
   const customTrackers = useCustomTrackers();
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-4 py-4 border-b border-border flex items-center gap-2.5">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
-          style={{ background: "linear-gradient(155deg, #14b8a633, #14b8a612)", border: "1px solid #14b8a640", boxShadow: "0 4px 14px -6px #14b8a680" }}
-        >
-          🧭
-        </div>
+        <SidebarLogo />
         <div className="min-w-0">
           <div className="font-bold text-white text-sm tracking-wide truncate">{siteName}</div>
           <div className="text-[11px] text-grey mt-0.5 truncate">{companyName}</div>

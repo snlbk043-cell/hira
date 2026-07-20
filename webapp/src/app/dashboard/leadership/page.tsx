@@ -267,7 +267,7 @@ export default function LeadershipDashboard() {
         </ChartCard>
       </div>
 
-      <ChartCard title="Leading vs Lagging Indicators — all 25 trackers" className="mb-4">
+      <ChartCard title={`Leading vs Lagging Indicators — all ${TRACKERS.length} trackers`} className="mb-4">
         <p className="text-xs text-grey mb-3">
           Leading = proactive activity that prevents harm (training, inspections, audits, JSA, near-miss reporting…). Lagging = an
           outcome measured only after harm or a violation already occurred.
@@ -381,7 +381,7 @@ export default function LeadershipDashboard() {
         )}
       </ChartCard>
 
-      <ChartCard title="System Health — RAG status of all 25 trackers (spider chart)" className="mb-4">
+      <ChartCard title={`System Health — RAG status of all ${TRACKERS.length} trackers (spider chart)`} className="mb-4">
         {health ? (
           <ResponsiveContainer width="100%" height={420}>
             <RadarChart data={health} outerRadius="75%">
