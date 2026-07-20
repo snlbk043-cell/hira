@@ -12,6 +12,7 @@ import ChartCard from "@/components/ChartCard";
 import RiskMatrix from "@/components/RiskMatrix";
 import EvidencePanel from "@/components/EvidencePanel";
 import PhotoGallery from "@/components/PhotoGallery";
+import FilesList from "@/components/FilesList";
 import { exportTrackerPdf, exportTrackerPpt, exportTrackerExcel } from "@/lib/exportUtils";
 
 const TEAL = "#14b8a6", GOLD = "#f5a524", CORAL = "#f0625a", PURPLE = "#8b5cf6";
@@ -56,6 +57,7 @@ export default function TrackerPageClient({
   trackerKey,
   customTracker,
   endpointOverride,
+  onDeleteTracker,
 }: {
   trackerKey: string;
   /** When set, renders this tracker definition instead of looking `trackerKey`
@@ -63,6 +65,8 @@ export default function TrackerPageClient({
    * every bit of this generic KPI/chart/form/table machinery. */
   customTracker?: TrackerDef;
   endpointOverride?: string;
+  /** Present only for custom trackers - shows a "Delete This Tracker" button. */
+  onDeleteTracker?: () => void;
 }) {
   const tracker = customTracker ?? trackerByKey(trackerKey)!;
   const endpoint = endpointOverride ?? `/api/tracker/${trackerKey}`;
@@ -228,6 +232,11 @@ export default function TrackerPageClient({
           <button onClick={() => doExport("excel")} disabled={!!exporting} className="text-xs px-3 py-1.5 rounded-md border border-border text-grey hover:text-white hover:bg-card-2 disabled:opacity-50">
             {exporting === "excel" ? "Building…" : "📗 Export Excel"}
           </button>
+          {onDeleteTracker && (
+            <button onClick={onDeleteTracker} className="text-xs px-3 py-1.5 rounded-md border border-coral/40 text-coral hover:bg-coral/10">
+              🗑️ Delete This Tracker
+            </button>
+          )}
         </div>
       </div>
 
@@ -301,6 +310,7 @@ export default function TrackerPageClient({
           </div>
 
           <PhotoGallery trackerKey={evidenceKey} />
+          <FilesList trackerKey={evidenceKey} />
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">

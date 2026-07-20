@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { fileIcon, formatSize } from "@/lib/fileHelpers";
 
 type Attachment = {
   id: number;
@@ -9,21 +10,6 @@ type Attachment = {
   kind: "photo" | "document";
   uploaded_at: string;
 };
-
-function fileIcon(contentType: string) {
-  if (contentType.startsWith("image/")) return "🖼️";
-  if (contentType === "application/pdf") return "📕";
-  if (contentType.includes("word")) return "📝";
-  if (contentType.includes("sheet") || contentType.includes("excel")) return "📊";
-  if (contentType.startsWith("video/")) return "🎥";
-  return "📎";
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export default function EvidencePanel({ trackerKey, recordId, onClose }: { trackerKey: string; recordId: number; onClose: () => void }) {
   const [items, setItems] = useState<Attachment[]>([]);
@@ -71,8 +57,8 @@ export default function EvidencePanel({ trackerKey, recordId, onClose }: { track
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-      <div className="card w-full max-w-lg max-h-[80vh] flex flex-col p-4" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div className="modal-pop card w-full max-w-lg max-h-[80vh] flex flex-col p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-semibold flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-teal shadow-[0_0_8px_2px_rgba(20,184,166,0.6)]" />

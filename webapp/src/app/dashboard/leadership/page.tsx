@@ -11,6 +11,7 @@ import ChartCard from "@/components/ChartCard";
 import SafeWorkBanner from "@/components/SafeWorkBanner";
 import { useSummary } from "@/lib/useSummary";
 import { TRACKERS, natureOf } from "@/lib/trackers";
+import { exportTrackerPdf, exportDashboardPpt, exportDashboardExcel, DashboardSection } from "@/lib/exportUtils";
 
 const TEAL = "#14b8a6", CORAL = "#f0625a", GOLD = "#f5a524";
 const AXIS = { stroke: "#94a3b8", fontSize: 11 };
@@ -46,6 +47,7 @@ export default function LeadershipDashboard() {
   const [department, setDepartment] = useState("All");
   const [month, setMonth] = useState(0);
   const { data, loading, error } = useSummary(year, department, month);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const [health, setHealth] = useState<HealthEntry[] | null>(null);
   useEffect(() => {
@@ -120,9 +122,73 @@ export default function LeadershipDashboard() {
     insights.push(`System-wide backlog: ${totalBacklog} overdue items across Corrective Actions, Observations, Inspections and Walkthroughs.`);
   }
 
+  const doExport = async (kind: "pdf" | "ppt" | "excel") => {
+    setExporting(kind);
+    try {
+      if (kind === "pdf") exportTrackerPdf();
+      else if (kind === "ppt") await exportDashboardPpt("🧭 Leadership Review", `RCPL Campa Cola CSD Plant · ${year}${department !== "All" ? ` · ${department}` : ""}`, buildExportSections(), `RCPL_Leadership_Review_${year}.pptx`);
+      else await exportDashboardExcel("Leadership Review", buildExportSections(), `RCPL_Leadership_Review_${year}.xlsx`);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const buildExportSections = (): DashboardSection[] => {
+    return [
+      {
+        title: "Headline KPIs",
+        columns: ["Metric", "Value"],
+        rows: [["TRIR", data.TRIR], ["LTIFR", data.LTIFR], ["Recordable", data.recordableTotal], ["System-Wide Backlog", totalBacklog]],
+      },
+      {
+        title: "Safe Work Man-Days / Man-Hours",
+        columns: ["Metric", "Value"],
+        rows: [
+          ["Days Since Last Recordable", data.safeWork.safeDaysRecordable ?? "—"],
+          ["Est. Safe Man-Hours", data.safeWork.safeManHoursRecordable ?? "—"],
+          ["Best-Ever Streak (days)", data.safeWork.bestStreakRecordableDays ?? "—"],
+          ["Days Since Last LTI", data.safeWork.safeDaysLti ?? "—"],
+        ],
+      },
+      {
+        title: "Department League Table",
+        columns: ["Department", "Score"],
+        rows: deptSorted.map(([dept, score]) => [dept, score]),
+      },
+      {
+        title: "System-Wide Action Backlog by Register",
+        columns: ["Register", "Overdue Count"],
+        rows: Object.entries(data.backlog).map(([k, v]) => [k.replace(/_/g, " "), v]),
+      },
+      {
+        title: "Year-over-Year Comparison",
+        columns: ["Metric", "Current YTD", "Prior Year"],
+        rows: yoy.map((r) => [r.label, r.cur, r.py]),
+      },
+      {
+        title: "Key Insights",
+        columns: ["Insight"],
+        rows: insights.map((i) => [i]),
+      },
+    ];
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-1">🧭 Leadership Review</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <h1 className="text-2xl font-bold">🧭 Leadership Review</h1>
+        <div className="flex gap-2 no-print">
+          <button onClick={() => doExport("pdf")} disabled={!!exporting} className="text-xs px-3 py-1.5 rounded-md border border-border text-grey hover:text-white hover:bg-card-2 disabled:opacity-50">
+            {exporting === "pdf" ? "Preparing…" : "📄 Export PDF"}
+          </button>
+          <button onClick={() => doExport("ppt")} disabled={!!exporting} className="text-xs px-3 py-1.5 rounded-md border border-border text-grey hover:text-white hover:bg-card-2 disabled:opacity-50">
+            {exporting === "ppt" ? "Building…" : "📊 Export PPT"}
+          </button>
+          <button onClick={() => doExport("excel")} disabled={!!exporting} className="text-xs px-3 py-1.5 rounded-md border border-border text-grey hover:text-white hover:bg-card-2 disabled:opacity-50">
+            {exporting === "excel" ? "Building…" : "📗 Export Excel"}
+          </button>
+        </div>
+      </div>
       <p className="text-grey text-sm mb-4">Corporate safety scorecard for {year}{department !== "All" ? ` · ${department}` : ""}</p>
       <Filters year={year} department={department} month={month} onYearChange={setYear} onDepartmentChange={setDepartment} onMonthChange={setMonth} />
 

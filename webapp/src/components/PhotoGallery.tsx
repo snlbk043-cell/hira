@@ -61,9 +61,14 @@ export default function PhotoGallery({ trackerKey }: { trackerKey: string }) {
       </div>
 
       {lightbox && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/85" onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/85" style={{ animation: "lightbox-in 200ms ease both" }} onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/attachments/${lightbox.id}`} alt={lightbox.filename} className="max-w-full max-h-full rounded-lg shadow-2xl" />
+          <img
+            src={`/api/attachments/${lightbox.id}`}
+            alt={lightbox.filename}
+            className="max-w-full max-h-full rounded-lg shadow-2xl"
+            style={{ animation: "lightbox-img-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both" }}
+          />
           <button className="absolute top-4 right-4 text-white text-2xl" onClick={() => setLightbox(null)}>✕</button>
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/80 text-sm bg-black/50 px-3 py-1 rounded-full">
             {lightbox.filename} · Record #{lightbox.record_id}
